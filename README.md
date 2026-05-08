@@ -2,7 +2,7 @@
 
 一个简洁优雅的英语外刊阅读 Web 应用，聚合 **The Economist（经济学人）、The New Yorker（纽约客）、The Atlantic（大西洋月刊）、Wired（连线）** 四大顶级英文期刊，助力英语学习。
 
-**🌐 在线体验：** `https://你的用户名.github.io/english-reading`
+**🌐 在线体验：** https://wangqiyue26-lab.github.io/english-reading/
 
 ---
 
@@ -42,7 +42,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/你的用户名/english-reading.git
+git clone https://github.com/wangqiyue26-lab/english-reading.git
 cd english-reading
 
 # 直接用浏览器打开（本地文件）
