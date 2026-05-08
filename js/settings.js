@@ -95,18 +95,25 @@ const Settings = {
     try {
       const saved = localStorage.getItem('el_settings');
       this._data = saved ? { ...this.defaults, ...JSON.parse(saved) } : { ...this.defaults };
-      // Ensure arrays are not overwritten by empty objects
       if (!Array.isArray(this._data.examBank)) this._data.examBank = [];
       if (!Array.isArray(this._data.interests)) this._data.interests = [];
     } catch(e) {
       this._data = { ...this.defaults };
+      console.warn('Settings load failed, using defaults:', e);
     }
   },
 
+  _storageAvailable() {
+    try { const k = '__test__'; localStorage.setItem(k, k); localStorage.removeItem(k); return true; }
+    catch(e) { return false; }
+  },
+
   save() {
-    localStorage.setItem('el_settings', JSON.stringify(this._data));
+    try {
+      localStorage.setItem('el_settings', JSON.stringify(this._data));
+    } catch(e) { /* storage full or unavailable */ }
     this._applyAll();
-    App.renderHome();
+    if (App && App.renderHome) App.renderHome();
   },
 
   reset() {

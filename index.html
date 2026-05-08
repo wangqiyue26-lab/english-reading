@@ -123,8 +123,14 @@
   <script src="js/reader.js"></script>
   <script src="js/app.js"></script>
   <script>
+    // Global error boundary
+    window.onerror = function(msg, url, line) {
+      console.warn('Global error:', msg, 'at', url, 'line', line);
+      return false; // let default handler run too
+    };
+    // Service Worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').catch(function(){});
     }
   </script>
 

@@ -59,6 +59,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: -webkit-fill-available;
   overflow-x: hidden;
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);

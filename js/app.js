@@ -10,13 +10,18 @@ const App = {
   },
 
   async init() {
-    // Init settings first
-    Settings.init();
-    await Settings.loadVocabLists();
+    // Wrap each init step so one failure doesn't block everything
+    const safeInit = (name, fn) => {
+      try { fn(); } catch(e) { console.warn('Init failed:', name, e); }
+    };
 
-    Dictionary.init();
-    Translator.init();
-    Reader.init();
+    safeInit('settings', () => Settings.init());
+    
+    try { await Settings.loadVocabLists(); } catch(e) { console.warn('Vocab lists failed:', e); }
+
+    safeInit('dictionary', () => Dictionary.init());
+    safeInit('translator', () => Translator.init());
+    safeInit('reader', () => Reader.init());
 
     // Update UI language
     this._applyLanguage();
@@ -58,15 +63,19 @@ const App = {
 
   // ===== READING GOAL =====
   _loadReadingGoal() {
-    const today = new Date().toISOString().slice(0, 10);
-    const stored = localStorage.getItem('el_goal_' + today);
-    this.state.readToday = stored ? parseInt(stored) : 0;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const stored = localStorage.getItem('el_goal_' + today);
+      this.state.readToday = stored ? parseInt(stored) : 0;
+    } catch(e) { this.state.readToday = 0; }
   },
 
   _markArticleRead() {
-    const today = new Date().toISOString().slice(0, 10);
-    this.state.readToday++;
-    localStorage.setItem('el_goal_' + today, String(this.state.readToday));
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      this.state.readToday++;
+      localStorage.setItem('el_goal_' + today, String(this.state.readToday));
+    } catch(e) { /* storage unavailable */ }
 
     const goal = Settings.get('dailyGoal');
     if (Settings.get('dailyGoalEnabled') && goal > 0 && this.state.readToday >= goal) {

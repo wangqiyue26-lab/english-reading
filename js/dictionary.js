@@ -1,53 +1,67 @@
 /* ============================================
    Dictionary Module - Word Lookup & Pronunciation
+   Robust version for all browsers
    ============================================ */
 
 const Dictionary = {
   cache: {},
   synth: null,
   _voice: null,
+  _initialized: false,
 
   init() {
-    this.synth = window.speechSynthesis;
-    // Find American English voice
-    this._findVoice();
+    try {
+      this.synth = window.speechSynthesis || null;
+      if (this.synth) {
+        try { this._findVoice(); } catch(e) { /* ignore */ }
+        // Some browsers load voices async
+        if (this.synth.onvoiceschanged !== undefined) {
+          this.synth.onvoiceschanged = () => { try { this._findVoice(); } catch(e) {} };
+        }
+      }
+      this._initialized = true;
+    } catch(e) {
+      this.synth = null;
+      this._initialized = true;
+    }
   },
 
   _findVoice() {
     if (!this.synth) return;
-    const voices = this.synth.getVoices();
-    // Prefer US female voice
-    this._voice = voices.find(v => v.lang === 'en-US' && v.name.includes('Female'))
-      || voices.find(v => v.lang === 'en-US')
-      || voices.find(v => v.lang.startsWith('en'));
+    try {
+      const voices = this.synth.getVoices();
+      if (!voices || !voices.length) return;
+      this._voice = voices.find(v => v.lang === 'en-US' && v.name.includes('Female'))
+        || voices.find(v => v.lang === 'en-US')
+        || voices.find(v => v.lang && v.lang.startsWith('en'));
+    } catch(e) { /* ignore */ }
   },
 
   async lookup(word) {
+    if (!word) return { word: '', phonetic: '', meanings: [] };
     const w = word.toLowerCase().trim();
     if (this.cache[w]) return this.cache[w];
 
     try {
       const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`);
       if (!res.ok) {
-        // Try MyMemory for Chinese translation as fallback
         return await this._translateWord(w);
       }
       const data = await res.json();
       const entry = data[0];
 
       const result = {
-        word: entry.word,
-        phonetic: entry.phonetic || (entry.phonetics?.[0]?.text) || '',
-        audio: entry.phonetics?.find(p => p.audio)?.audio || '',
+        word: entry.word || w,
+        phonetic: entry.phonetic || (entry.phonetics && entry.phonetics[0] && entry.phonetics[0].text) || '',
+        audio: '',
         meanings: []
       };
 
-      // Extract Chinese-relevant definitions
-      for (const meaning of entry.meanings || []) {
-        for (const def of meaning.definitions || []) {
+      for (const meaning of (entry.meanings || [])) {
+        for (const def of (meaning.definitions || [])) {
           result.meanings.push({
-            pos: meaning.partOfSpeech,
-            definition: def.definition,
+            pos: meaning.partOfSpeech || '',
+            definition: def.definition || '',
             example: def.example || ''
           });
           if (result.meanings.length >= 3) break;
@@ -55,7 +69,6 @@ const Dictionary = {
         if (result.meanings.length >= 3) break;
       }
 
-      // Try to get Chinese translation via MyMemory
       const zh = await this._getChinese(w);
       if (zh) {
         result.meanings.unshift({ pos: 'zh', definition: zh, example: '' });
@@ -64,47 +77,42 @@ const Dictionary = {
       this.cache[w] = result;
       return result;
     } catch (e) {
-      console.error('Dictionary lookup error:', e);
-      return { word, phonetic: '', meanings: [{ pos: '', definition: 'Lookup failed', example: '' }] };
+      return { word: w, phonetic: '', meanings: [{ pos: '', definition: 'Lookup failed', example: '' }] };
     }
   },
 
   async _translateWord(word) {
     const zh = await this._getChinese(word);
     if (!zh) return { word, phonetic: '', meanings: [{ pos: '', definition: 'No result', example: '' }] };
-    return {
-      word,
-      phonetic: '',
-      meanings: [{ pos: 'zh', definition: zh, example: '' }]
-    };
+    return { word, phonetic: '', meanings: [{ pos: 'zh', definition: zh, example: '' }] };
   },
 
   async _getChinese(word) {
     try {
       const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|zh`);
+      if (!res.ok) return '';
       const data = await res.json();
-      return data.responseData?.translatedText || '';
+      return (data.responseData && data.responseData.translatedText) || '';
     } catch { return ''; }
   },
 
-  async speak(word) {
-    if (!this.synth) {
-      App.toast('Speech not supported');
-      return;
+  speak(word) {
+    if (!this.synth) { return null; }
+    try {
+      this.synth.cancel();
+      const voices = this.synth.getVoices();
+      const voice = voices.find(v => v.lang === 'en-US')
+        || (voices.length > 0 ? voices.find(v => v.lang && v.lang.startsWith('en')) : null);
+
+      const utter = new SpeechSynthesisUtterance(word);
+      if (voice) utter.voice = voice;
+      utter.lang = 'en-US';
+      utter.rate = 0.9;
+      utter.pitch = 1;
+      this.synth.speak(utter);
+      return utter;
+    } catch(e) {
+      return null;
     }
-    // Cancel any ongoing speech
-    this.synth.cancel();
-
-    const voices = this.synth.getVoices();
-    const voice = voices.find(v => v.lang === 'en-US')
-      || voices.find(v => v.lang.startsWith('en'));
-
-    const utter = new SpeechSynthesisUtterance(word);
-    utter.voice = voice || null;
-    utter.lang = 'en-US';
-    utter.rate = 0.9;
-    utter.pitch = 1;
-    this.synth.speak(utter);
-    return utter;
   }
 };

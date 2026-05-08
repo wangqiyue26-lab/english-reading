@@ -454,6 +454,7 @@ const Reader = {
   _readNext() {
     if (!this._readState.active) return;
     if (this._readState.paused) return;
+    if (!window.speechSynthesis) { this._stopReading(); return; }
 
     this._readState.currentIdx++;
     if (this._readState.currentIdx >= this.sentences.length) {
@@ -468,9 +469,11 @@ const Reader = {
     this._highlightSentence(idx);
 
     const utter = new SpeechSynthesisUtterance(sentence.text);
-    const voices = speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
-    if (voice) utter.voice = voice;
+    try {
+      const voices = speechSynthesis.getVoices();
+      const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang && v.lang.startsWith('en'));
+      if (voice) utter.voice = voice;
+    } catch(e) { /* voice selection failed, use default */ }
     utter.lang = 'en-US';
     utter.rate = 0.9;
     utter.pitch = 1;
@@ -484,11 +487,17 @@ const Reader = {
     utter.onerror = (e) => {
       if (e.error !== 'interrupted' && e.error !== 'canceled') {
         console.warn('TTS error:', e.error);
+        this._readNext(); // skip this sentence and continue
       }
     };
 
     this._readState.utterance = utter;
-    speechSynthesis.speak(utter);
+    try {
+      speechSynthesis.speak(utter);
+    } catch(e) {
+      console.warn('speak() failed:', e);
+      this._readNext();
+    }
   },
 
   _highlightSentence(idx) {
