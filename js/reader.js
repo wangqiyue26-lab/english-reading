@@ -89,7 +89,7 @@ const Reader = {
       content.style.fontSize = Settings.get('fontSize') + 'px';
       content.style.lineHeight = String(Settings.get('lineSpacing'));
     }
-    const page = document.getElementById('reader-page');
+    const page = document.querySelector('.reader-page');
     if (page) {
       page.style.maxWidth = widthMap[Settings.get('contentWidth')] || '680px';
     }
