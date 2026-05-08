@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.epub
+/mnt/
+pipeline_work/
+test.epub
+pipeline.py
+repo/
