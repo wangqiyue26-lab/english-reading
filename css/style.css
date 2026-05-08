@@ -266,7 +266,13 @@ body {
 .article-content .sentence-container {
   margin-bottom: 3px;
   border-radius: 4px;
-  padding: 2px 0;
+  padding: 2px 6px;
+  transition: background 0.3s, border-left 0.3s;
+  border-left: 3px solid transparent;
+}
+.article-content .sentence-reading {
+  background: var(--accent-light);
+  border-left-color: var(--accent);
 }
 
 .article-content .sentence-container .zh {

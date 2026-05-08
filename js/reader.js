@@ -31,6 +31,9 @@ const Reader = {
   },
 
   async open(article) {
+    // Stop any ongoing reading
+    this._stopReading();
+    
     this.article = article;
     this.sentences = [];
     this.state.sentenceTranslation = false;
@@ -416,5 +419,120 @@ const Reader = {
     } else {
       document.getElementById('ai-summary').style.display = 'none';
     }
+  },
+
+  // ===== FULL ARTICLE TEXT-TO-SPEECH =====
+  _readState: { active: false, paused: false, currentIdx: -1, utterance: null },
+
+  toggleReadAloud() {
+    if (!this._readState.active) {
+      this._startReading();
+    } else if (this._readState.paused) {
+      this._resumeReading();
+    } else {
+      this._pauseReading();
+    }
+  },
+
+  _startReading() {
+    if (!window.speechSynthesis) {
+      App.toast(Settings.get('language') === 'zh' ? '浏览器不支持语音合成' : 'Speech not supported');
+      return;
+    }
+
+    if (!this.sentences || this.sentences.length === 0) return;
+
+    const btn = document.getElementById('btn-read-aloud');
+    btn.classList.add('active');
+    const label = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
+    btn.innerHTML = label;
+
+    this._readState = { active: true, paused: false, currentIdx: -1, utterance: null };
+    this._readNext();
+  },
+
+  _readNext() {
+    if (!this._readState.active) return;
+    if (this._readState.paused) return;
+
+    this._readState.currentIdx++;
+    if (this._readState.currentIdx >= this.sentences.length) {
+      this._stopReading();
+      return;
+    }
+
+    const idx = this._readState.currentIdx;
+    const sentence = this.sentences[idx];
+
+    // Highlight current sentence
+    this._highlightSentence(idx);
+
+    const utter = new SpeechSynthesisUtterance(sentence.text);
+    const voices = speechSynthesis.getVoices();
+    const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+    if (voice) utter.voice = voice;
+    utter.lang = 'en-US';
+    utter.rate = 0.9;
+    utter.pitch = 1;
+
+    utter.onend = () => {
+      if (this._readState.active && !this._readState.paused) {
+        this._readNext();
+      }
+    };
+
+    utter.onerror = (e) => {
+      if (e.error !== 'interrupted' && e.error !== 'canceled') {
+        console.warn('TTS error:', e.error);
+      }
+    };
+
+    this._readState.utterance = utter;
+    speechSynthesis.speak(utter);
+  },
+
+  _highlightSentence(idx) {
+    // Remove previous highlight
+    document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading'));
+
+    // Find and highlight current sentence container
+    const container = document.querySelector(`[data-sentence-idx="${idx}"]`);
+    if (container) {
+      container.classList.add('sentence-reading');
+      // Smooth scroll to the sentence
+      container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  },
+
+  _pauseReading() {
+    if (!this._readState.active) return;
+    this._readState.paused = true;
+    speechSynthesis.pause();
+    const btn = document.getElementById('btn-read-aloud');
+    btn.innerHTML = Settings.get('language') === 'zh' ? '▶ 继续' : '▶ Resume';
+  },
+
+  _resumeReading() {
+    this._readState.paused = false;
+    speechSynthesis.resume();
+    const btn = document.getElementById('btn-read-aloud');
+    btn.innerHTML = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
+  },
+
+  _stopReading() {
+    this._readState.active = false;
+    this._readState.paused = false;
+    speechSynthesis.cancel();
+
+    // Remove highlight
+    document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading'));
+
+    const btn = document.getElementById('btn-read-aloud');
+    if (btn) {
+      btn.classList.remove('active');
+      btn.innerHTML = Settings.get('language') === 'zh' ? '🔊 全文朗读' : '🔊 Read Aloud';
+    }
+
+    this._readState.currentIdx = -1;
   }
 };
