@@ -59,6 +59,30 @@ const App = {
     document.getElementById('btn-settings').addEventListener('click', () => {
       this._openSettings();
     });
+
+    // Event delegation for article cards (most robust cross-browser)
+    document.getElementById('article-list').addEventListener('click', function(e) {
+      // Polyfill closest for older browsers
+      var el = e.target;
+      while (el && el !== this) {
+        if (el.classList && el.classList.contains('article-card')) break;
+        el = el.parentElement;
+      }
+      if (!el || el === this) return;
+      var id = el.getAttribute('data-id');
+      if (!id) return;
+      try {
+        const article = Data.getById(id);
+        if (article) {
+          Reader.open(article);
+          App._markArticleRead();
+          App._updateBackButton();
+          App._applyReaderStyles();
+        }
+      } catch(err) {
+        console.warn('Open article failed:', err);
+      }
+    });
   },
 
   // ===== READING GOAL =====
@@ -573,25 +597,10 @@ const App = {
     }
 
     list.innerHTML = '';
-    // Use window-scoped handler that Quark can access
-    window._openArticle = function(id) {
-      try {
-        const article = Data.getById(id);
-        if (!article) return;
-        Reader.open(article);
-        App._markArticleRead();
-        App._updateBackButton();
-        App._applyReaderStyles();
-      } catch(e) {
-        console.warn('openArticle error:', e);
-      }
-    };
-
     for (const a of articles) {
       const card = document.createElement('div');
       card.className = 'article-card';
       card.setAttribute('data-id', a.id);
-      card.setAttribute('onclick', "window._openArticle('" + a.id + "')");
       const color = Data.getDifficultyColor(a.difficulty);
       card.innerHTML = `
         <div class="title">${a.title}</div>
@@ -603,10 +612,6 @@ const App = {
         </div>
         ${a.tags ? `<div class="tags">${a.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>` : ''}
       `;
-      // Also add event listener for modern browsers
-      card.addEventListener('click', function() {
-        window._openArticle(a.id);
-      });
       list.appendChild(card);
     }
   },
