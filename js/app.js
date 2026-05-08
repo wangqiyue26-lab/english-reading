@@ -573,9 +573,25 @@ const App = {
     }
 
     list.innerHTML = '';
+    // Use window-scoped handler that Quark can access
+    window._openArticle = function(id) {
+      try {
+        const article = Data.getById(id);
+        if (!article) return;
+        Reader.open(article);
+        App._markArticleRead();
+        App._updateBackButton();
+        App._applyReaderStyles();
+      } catch(e) {
+        console.warn('openArticle error:', e);
+      }
+    };
+
     for (const a of articles) {
       const card = document.createElement('div');
       card.className = 'article-card';
+      card.setAttribute('data-id', a.id);
+      card.setAttribute('onclick', "window._openArticle('" + a.id + "')");
       const color = Data.getDifficultyColor(a.difficulty);
       card.innerHTML = `
         <div class="title">${a.title}</div>
@@ -587,11 +603,9 @@ const App = {
         </div>
         ${a.tags ? `<div class="tags">${a.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>` : ''}
       `;
-      card.addEventListener('click', () => {
-        Reader.open(a);
-        this._markArticleRead();
-        this._updateBackButton();
-        this._applyReaderStyles();
+      // Also add event listener for modern browsers
+      card.addEventListener('click', function() {
+        window._openArticle(a.id);
       });
       list.appendChild(card);
     }

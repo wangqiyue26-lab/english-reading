@@ -516,25 +516,25 @@ const Reader = {
   _pauseReading() {
     if (!this._readState.active) return;
     this._readState.paused = true;
-    speechSynthesis.pause();
+    try { if (window.speechSynthesis) speechSynthesis.pause(); } catch(e) {}
     const btn = document.getElementById('btn-read-aloud');
-    btn.innerHTML = Settings.get('language') === 'zh' ? '▶ 继续' : '▶ Resume';
+    if (btn) btn.innerHTML = Settings.get('language') === 'zh' ? '▶ 继续' : '▶ Resume';
   },
 
   _resumeReading() {
     this._readState.paused = false;
-    speechSynthesis.resume();
+    try { if (window.speechSynthesis) speechSynthesis.resume(); } catch(e) {}
     const btn = document.getElementById('btn-read-aloud');
-    btn.innerHTML = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
+    if (btn) btn.innerHTML = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
   },
 
   _stopReading() {
     this._readState.active = false;
     this._readState.paused = false;
-    speechSynthesis.cancel();
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e) {}
 
     // Remove highlight
-    document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading'));
+    try { document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading')); } catch(e) {}
 
     const btn = document.getElementById('btn-read-aloud');
     if (btn) {
