@@ -30,11 +30,12 @@ const Settings = {
     interests: [],          // ['technology', 'economics', ...]
     dailyGoal: 0,           // articles per day
     dailyGoalEnabled: false,
+    hideRead: false,        // hide read articles from home
   },
 
   i18n: {
     zh: {
-      settings: '设置', reading: '英语阅读',
+      settings: '设置', reading: '英语阅读', profile_title: '个人主页',
       tab_system: '界面', tab_reader: '阅读器', tab_learning: '学习辅助', tab_content: '内容过滤',
       language: '系统语言', theme: '显示模式', density: '紧凑度',
       lang_zh: '简体中文', lang_en: 'English',
@@ -56,9 +57,20 @@ const Settings = {
       save: '保存', reset: '恢复默认', close: '关闭',
       reading_progress: '阅读进度', today_read: '今日已读', articles: '篇',
       word_level: '等级', word_ielts: '雅思', word_toefl: '托福', word_gre: 'GRE',
+      mark_read: '标记已读', mark_read_done: '已读', bookmark: '收藏', bookmark_done: '已收藏',
+      streak_days: '连续打卡天数', total_reads: '累计阅读', month_days: '本月打卡',
+      vocab_notebook: '生词本', vocab_empty: '点击文章中的单词查词后会自动加入生词本',
+      my_bookmarks: '我的收藏', bookmark_empty: '还没有收藏文章',
+      my_reads: '已读文章', read_empty: '还没有已读文章', hide_read: '隐藏已读',
+      resume_reading: '继续阅读', review_due: '今日有 {n} 个单词待复习',
+      heatmap: '学习热力图', heatmap_year: '近一年', heatmap_less: '少', heatmap_more: '多',
+      vocab_all: '全部', vocab_review: '待复习', vocab_mastered: '已掌握',
+      level_0: '初学者', level_1: '阅读爱好者', level_2: '资深读者',
+      level_3: '评论员', level_4: '学术专家',
+      level_next: '还需 {n} 天升级至 {name}',
     },
     en: {
-      settings: 'Settings', reading: 'English Reading',
+      settings: 'Settings', reading: 'English Reading', profile_title: 'Profile',
       tab_system: 'System', tab_reader: 'Reader', tab_learning: 'Learning', tab_content: 'Content',
       language: 'Language', theme: 'Theme', density: 'Density',
       lang_zh: '简体中文', lang_en: 'English',
@@ -80,6 +92,17 @@ const Settings = {
       save: 'Save', reset: 'Reset', close: 'Close',
       reading_progress: 'Reading Progress', today_read: "Today's Read", articles: 'articles',
       word_level: 'Level', word_ielts: 'IELTS', word_toefl: 'TOEFL', word_gre: 'GRE',
+      mark_read: 'Mark Read', mark_read_done: 'Read', bookmark: 'Bookmark', bookmark_done: 'Bookmarked',
+      streak_days: 'Day Streak', total_reads: 'Total Reads', month_days: 'This Month',
+      vocab_notebook: 'Vocabulary', vocab_empty: 'Tap words while reading to add them here',
+      my_bookmarks: 'Bookmarks', bookmark_empty: 'No bookmarks yet',
+      my_reads: 'Read Articles', read_empty: 'No articles read yet', hide_read: 'Hide Read',
+      resume_reading: 'Resume Reading', review_due: '{n} words due for review today',
+      heatmap: 'Learning Heatmap', heatmap_year: 'Past Year', heatmap_less: 'Less', heatmap_more: 'More',
+      vocab_all: 'All', vocab_review: 'Review', vocab_mastered: 'Mastered',
+      level_0: 'Beginner', level_1: 'Bookworm', level_2: 'Senior Reader',
+      level_3: 'Commentator', level_4: 'Academic Expert',
+      level_next: '{n} days to {name}',
     }
   },
 

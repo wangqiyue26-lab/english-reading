@@ -22,6 +22,7 @@ const App = {
     safeInit('dictionary', () => Dictionary.init());
     safeInit('translator', () => Translator.init());
     safeInit('reader', () => Reader.init());
+    safeInit('profile', () => Profile.init());
 
     // Update UI language
     this._applyLanguage();
@@ -58,6 +59,12 @@ const App = {
     // Settings button
     document.getElementById('btn-settings').addEventListener('click', () => {
       this._openSettings();
+    });
+
+    // Profile button
+    document.getElementById('btn-profile').addEventListener('click', () => {
+      Profile.open();
+      this._updateBackButton();
     });
 
     // Event delegation for article cards (most robust cross-browser)
@@ -99,6 +106,18 @@ const App = {
       const today = new Date().toISOString().slice(0, 10);
       this.state.readToday++;
       localStorage.setItem('el_goal_' + today, String(this.state.readToday));
+
+      // Save streak date
+      let streakDates = JSON.parse(localStorage.getItem('el_streak_dates') || '[]');
+      if (!streakDates.includes(today)) {
+        streakDates.push(today);
+        localStorage.setItem('el_streak_dates', JSON.stringify(streakDates));
+      }
+
+      // Track daily word/article count for heatmap
+      if (Reader && Reader.article) {
+        Profile.recordRead(Reader.article);
+      }
     } catch(e) { /* storage unavailable */ }
 
     const goal = Settings.get('dailyGoal');
@@ -580,6 +599,19 @@ const App = {
       });
     }
 
+    // Load read/bookmark IDs for indicators and filtering
+    let readIds = [];
+    let bookmarkIds = [];
+    try {
+      readIds = JSON.parse(localStorage.getItem('el_read') || '[]');
+      bookmarkIds = JSON.parse(localStorage.getItem('el_bookmark') || '[]');
+    } catch(e) {}
+
+    // Hide read articles if enabled
+    if (Settings.get('hideRead')) {
+      articles = articles.filter(a => !readIds.includes(a.id));
+    }
+
     // Apply interest preference (boost matching articles to top)
     const interests = Settings.get('interests');
     if (interests && interests.length > 0) {
@@ -602,8 +634,14 @@ const App = {
       card.className = 'article-card';
       card.setAttribute('data-id', a.id);
       const color = Data.getDifficultyColor(a.difficulty);
+
+      // Status indicators
+      let indicators = '';
+      if (readIds.includes(a.id)) indicators += '<span class="article-indicator read-ind" title="' + (Settings.get('language')==='zh'?'已读':'Read') + '">✅</span>';
+      if (bookmarkIds.includes(a.id)) indicators += '<span class="article-indicator bm-ind" title="' + (Settings.get('language')==='zh'?'已收藏':'Bookmarked') + '">⭐</span>';
+
       card.innerHTML = `
-        <div class="title">${a.title}</div>
+        <div class="title">${indicators}${a.title}</div>
         <div class="meta">
           <span class="difficulty-dot" style="background:${color}"></span>
           ${a.difficultyLabel}
@@ -630,7 +668,8 @@ const App = {
   _updateBackButton() {
     const btn = document.getElementById('btn-back');
     const readerActive = document.getElementById('reader-page').classList.contains('active');
-    btn.style.display = readerActive ? '' : 'none';
+    const profileActive = document.getElementById('profile-page').classList.contains('active');
+    btn.style.display = (readerActive || profileActive) ? '' : 'none';
   },
 
   toast(message, duration = 2000) {

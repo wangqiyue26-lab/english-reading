@@ -8,6 +8,8 @@ const Reader = {
   currentWord: null,
   popupEl: null,
   progressTimer: null,
+  _readArticles: [],
+  _bookmarkedArticles: [],
   state: {
     sentenceTranslation: false,
     fullTranslation: false,
@@ -16,6 +18,7 @@ const Reader = {
 
   init() {
     this.popupEl = document.getElementById('word-popup');
+    this._loadArticleStates();
     this._bindEvents();
   },
 
@@ -39,6 +42,9 @@ const Reader = {
     this.state.sentenceTranslation = false;
     this.state.fullTranslation = false;
     this.state.aiSummary = false;
+
+    // Update action button states
+    this._updateActionButtons();
 
     // Apply reader styles from settings
     this._applySettings();
@@ -116,9 +122,12 @@ const Reader = {
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const total = container.scrollHeight;
-    const scrolled = Math.max(0, -rect.top + window.innerHeight * 0.3);
-    const pct = Math.min(100, Math.round((scrolled / total) * 100));
+    const winHeight = window.innerHeight;
+    // Total scrollable distance: content height minus viewport height
+    const maxScroll = Math.max(1, container.scrollHeight - winHeight);
+    // How far the container top has scrolled above the viewport top
+    const scrolled = Math.max(0, -rect.top);
+    const pct = Math.min(100, Math.round((scrolled / maxScroll) * 100));
 
     document.getElementById('reader-progress').style.display = '';
     document.getElementById('reader-progress-fill').style.width = pct + '%';
@@ -131,6 +140,15 @@ const Reader = {
       const remainingNow = Math.max(1, Math.round(remaining * (1 - pct / 100)));
       const label = Settings.get('language') === 'zh' ? '剩余约 ' + remainingNow + ' 分钟' : '~' + remainingNow + ' min left';
       document.getElementById('reader-progress-text').textContent = label;
+    }
+
+    // Save resume-reading state (throttled by scroll events)
+    if (this.article) {
+      if (pct >= 100) {
+        Profile.clearLastRead();
+      } else if (pct > 0) {
+        Profile.saveLastRead(this.article.id, pct);
+      }
     }
   },
 
@@ -252,6 +270,13 @@ const Reader = {
     const result = await Dictionary.lookup(word);
     const isEnEn = dictType === 'enen';
 
+    // Store for add-to-vocab button
+    this._pendingVocab = {
+      word: word,
+      phonetic: result.phonetic || '',
+      definition: (result.meanings && result.meanings.length > 0) ? result.meanings[0].definition : ''
+    };
+
     let defsHtml = '';
     for (const m of (result.meanings || []).slice(0, 4)) {
       if (isEnEn && m.pos === 'zh') continue; // skip Chinese in English-only mode
@@ -275,10 +300,32 @@ const Reader = {
       ${defsHtml ? `<div class="wp-definitions">${defsHtml}</div>` : ''}
       <div class="wp-actions">
         <button class="wp-btn" id="btn-speak">🔊 ${Settings.get('language')==='zh'?'朗读':'Speak'}</button>
+        <button class="wp-btn wp-btn-add" id="btn-add-vocab">➕ ${Settings.get('language')==='zh'?'生词本':'Vocab'}</button>
       </div>
     `;
 
     this._positionPopup(event);
+
+    // Check if word already in vocab
+    let inVocab = false;
+    try {
+      const vocab = JSON.parse(localStorage.getItem('el_vocab') || '[]');
+      inVocab = vocab.some(w => w.word.toLowerCase() === word.toLowerCase());
+    } catch(e) {}
+
+    const btnAdd = document.getElementById('btn-add-vocab');
+    if (inVocab) {
+      btnAdd.innerHTML = '✅ ' + (Settings.get('language')==='zh'?'已添加':'Added');
+      btnAdd.classList.add('added');
+    }
+
+    btnAdd.addEventListener('click', () => {
+      if (btnAdd.classList.contains('added')) return;
+      const v = this._pendingVocab;
+      if (v) Profile.addVocab(v.word, v.phonetic, v.definition);
+      btnAdd.innerHTML = '✅ ' + (Settings.get('language')==='zh'?'已添加':'Added');
+      btnAdd.classList.add('added');
+    });
 
     document.getElementById('btn-speak').addEventListener('click', () => {
       const btn = document.getElementById('btn-speak');
@@ -543,5 +590,75 @@ const Reader = {
     }
 
     this._readState.currentIdx = -1;
+  },
+
+  // ===== ARTICLE READ / BOOKMARK =====
+
+  _loadArticleStates() {
+    try {
+      this._readArticles = JSON.parse(localStorage.getItem('el_read') || '[]');
+      this._bookmarkedArticles = JSON.parse(localStorage.getItem('el_bookmark') || '[]');
+    } catch(e) {
+      this._readArticles = [];
+      this._bookmarkedArticles = [];
+    }
+  },
+
+  _updateActionButtons() {
+    if (!this.article) return;
+    const id = this.article.id;
+    const btnRead = document.getElementById('btn-mark-read');
+    const btnBookmark = document.getElementById('btn-bookmark');
+    if (!btnRead || !btnBookmark) return;
+    const isZh = Settings.get('language') === 'zh';
+
+    if (this._readArticles.includes(id)) {
+      btnRead.classList.add('active');
+      btnRead.innerHTML = '✅ <span>' + (isZh ? '已读' : 'Read') + '</span>';
+    } else {
+      btnRead.classList.remove('active');
+      btnRead.innerHTML = '✅ <span>' + (isZh ? '标记已读' : 'Mark Read') + '</span>';
+    }
+
+    if (this._bookmarkedArticles.includes(id)) {
+      btnBookmark.classList.add('active');
+      btnBookmark.innerHTML = '⭐ <span>' + (isZh ? '已收藏' : 'Bookmarked') + '</span>';
+    } else {
+      btnBookmark.classList.remove('active');
+      btnBookmark.innerHTML = '🔖 <span>' + (isZh ? '收藏' : 'Bookmark') + '</span>';
+    }
+  },
+
+  toggleRead() {
+    if (!this.article) return;
+    const id = this.article.id;
+    const idx = this._readArticles.indexOf(id);
+    if (idx >= 0) {
+      this._readArticles.splice(idx, 1);
+    } else {
+      this._readArticles.push(id);
+      // Clear resume state when explicitly marked as read
+      Profile.clearLastRead();
+    }
+    try { localStorage.setItem('el_read', JSON.stringify(this._readArticles)); } catch(e) {}
+    this._updateActionButtons();
+  },
+
+  toggleBookmark() {
+    if (!this.article) return;
+    const id = this.article.id;
+    const idx = this._bookmarkedArticles.indexOf(id);
+    if (idx >= 0) {
+      this._bookmarkedArticles.splice(idx, 1);
+    } else {
+      this._bookmarkedArticles.push(id);
+    }
+    try { localStorage.setItem('el_bookmark', JSON.stringify(this._bookmarkedArticles)); } catch(e) {}
+    this._updateActionButtons();
+    const isZh = Settings.get('language') === 'zh';
+    App.toast(this._bookmarkedArticles.includes(id)
+      ? (isZh ? '已收藏 ⭐' : 'Bookmarked ⭐')
+      : (isZh ? '已取消收藏' : 'Removed bookmark'));
   }
+
 };
