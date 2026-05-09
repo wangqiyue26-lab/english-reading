@@ -26,42 +26,50 @@ jobs:
 
       - name: Setup Android SDK
         run: |
-          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          ANDROID_HOME=$ANDROID_SDK_ROOT
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
-          echo "=== Available SDK platforms ==="
-          ls $ANDROID_SDK_ROOT/platforms/ 2>/dev/null || echo "No platforms dir"
-          ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "No build-tools dir"
-          # Install needed components
-          if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" 2>&1
-          fi
+          echo "=== Pre-installed SDK ==="
+          ls $ANDROID_SDK_ROOT/platforms/ 2>/dev/null
+          ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null
+          # Accept licenses
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          # Install platforms
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0" 2>&1 || true
+          echo "=== After install ==="
+          ls $ANDROID_SDK_ROOT/platforms/ 2>/dev/null
+          ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null
 
-      - name: Setup Gradle
-        run: |
-          curl -sSLo /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-          unzip -q /tmp/gradle.zip -d /tmp
-          echo "/tmp/gradle-8.11.1/bin" >> $GITHUB_PATH
-
-      - name: Generate Gradle Wrapper
+      - name: Setup Gradle Wrapper
         working-directory: android
-        run: gradle wrapper --gradle-version 8.11.1
+        run: |
+          # Download Gradle, generate wrapper, then build
+          curl -sSLo gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          unzip -q gradle.zip
+          GRADLE_HOME=$PWD/gradle-8.11.1
+          $GRADLE_HOME/bin/gradle wrapper --gradle-version 8.11.1
+          # Set executable
+          chmod +x gradlew
+          echo "Wrapper generated"
+          ./gradlew --version
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1
+        run: ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tail -200
 
       - name: Find APK
-        run: find android -name "*.apk" -type f
+        run: find android -name "*.apk" -type f -ls
 
       - name: Upload APK Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: english-reading-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/**/*.apk
 
       - name: Create GitHub Release
         if: success()
