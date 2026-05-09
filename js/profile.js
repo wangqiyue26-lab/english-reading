@@ -245,6 +245,7 @@ const Profile = {
 
     while (current <= endDate) {
       const week = [];
+      let isFirstOfMonth = false;
       for (let d = 0; d < 7; d++) {
         const date = new Date(current);
         date.setDate(date.getDate() + d);
@@ -255,24 +256,29 @@ const Profile = {
           week.push({ date: dateStr, words: -1 });
         } else {
           const words = statsMap[dateStr] || 0;
-          week.push({ date: dateStr, words: words });
-          if (date.getMonth() !== lastMonth && d === 0) {
+          if (date.getMonth() !== lastMonth) {
             lastMonth = date.getMonth();
-            months.push({ idx: cols.length, label: monthNames[lastMonth] });
+            isFirstOfMonth = true;
           }
+          week.push({ date: dateStr, words: words, monthLabel: isFirstOfMonth ? monthNames[lastMonth] : null });
+          isFirstOfMonth = false;
         }
       }
       cols.push(week);
       current.setDate(current.getDate() + 7);
     }
 
-    // Render months
-    const monthsEl = document.getElementById('heatmap-months');
-    monthsEl.innerHTML = months.map(m => '<span style="position:absolute;left:' + (m.idx * 16) + 'px">' + m.label + '</span>').join('');
-    monthsEl.style.cssText = 'position:relative;height:14px;margin-left:14px;margin-bottom:2px;font-size:10px;color:var(--text-muted)';
-
-    // Render grid
+    // Render months row + grid in unified container
     const grid = document.getElementById('heatmap-grid');
+    const monthsEl = document.getElementById('heatmap-months');
+
+    // Month labels as first "row" of grid columns
+    monthsEl.innerHTML = cols.map(col => {
+      const label = col.find(c => c.monthLabel) || {};
+      return '<span class="heatmap-month-label">' + (label.monthLabel || '') + '</span>';
+    }).join('');
+
+    // Grid cells (7 rows per column)
     const maxWords = Math.max(1, ...Object.values(statsMap));
     grid.innerHTML = cols.map(col =>
       '<div class="heatmap-col">' +
