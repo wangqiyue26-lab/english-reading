@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Background circle -->
+    <path
+        android:fillColor="#1a56db"
+        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    <!-- Open book shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M35,30 L54,38 L73,30 L73,68 L54,76 L35,68 Z"
+        android:strokeWidth="0" />
+    <!-- Left page line -->
+    <path
+        android:fillColor="#1a56db"
+        android:pathData="M40,44 L51,49 L51,60 L40,55 Z" />
+    <!-- Right page line -->
+    <path
+        android:fillColor="#1a56db"
+        android:pathData="M57,49 L68,44 L68,55 L57,60 Z" />
+</vector>

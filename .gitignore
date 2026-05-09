@@ -6,3 +6,13 @@ pipeline_work/
 test.epub
 pipeline.py
 repo/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore

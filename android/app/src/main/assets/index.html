@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover, shrink-to-fit=no">
+  <meta name="theme-color" content="#faf9f6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="English Reading">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <title>English Reading</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <div class="top-bar" id="top-bar">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="btn-icon" id="btn-back" style="display:none">←</button>
+      <h1 id="app-title">English Reading</h1>
+    </div>
+    <div class="top-bar-actions">
+      <button class="btn-icon" id="btn-profile" title="Profile">👤</button>
+      <button class="btn-icon" id="btn-settings" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <!-- ====== SETTINGS MODAL ====== -->
+  <div class="settings-overlay" id="settings-overlay">
+    <div class="settings-modal">
+      <div class="settings-sidebar">
+        <div class="settings-sidebar-title" data-lang="settings">设置</div>
+        <button class="settings-tab active" data-tab="system">🖥️ <span data-lang="tab_system">界面</span></button>
+        <button class="settings-tab" data-tab="reader">📖 <span data-lang="tab_reader">阅读器</span></button>
+        <button class="settings-tab" data-tab="learning">🎓 <span data-lang="tab_learning">学习辅助</span></button>
+        <button class="settings-tab" data-tab="content">🔍 <span data-lang="tab_content">内容过滤</span></button>
+        <div class="settings-sidebar-footer">
+          <button class="settings-btn-secondary" id="btn-reset-settings" data-lang="reset">恢复默认</button>
+        </div>
+      </div>
+      <div class="settings-content" id="settings-content"></div>
+      <button class="settings-close" id="btn-close-settings">✕</button>
+    </div>
+  </div>
+
+  <!-- ====== HOME PAGE ====== -->
+  <div class="page active" id="home-page">
+    <div class="home-page">
+      <!-- Daily Goal Bar -->
+      <div class="goal-bar" id="goal-bar" style="display:none">
+        <div class="goal-bar-text"><span data-lang="today_read">今日已读</span>: <span id="goal-count">0</span>/<span id="goal-target">0</span> <span data-lang="articles">篇</span></div>
+        <div class="goal-bar-fill"><div class="goal-bar-progress" id="goal-progress"></div></div>
+      </div>
+
+      <div class="section-title">📰 <span data-lang-key="journals">期刊</span></div>
+      <div class="journal-grid" id="journal-grid"></div>
+
+      <div class="section-title">📊 <span data-lang-key="difficulty">难度</span></div>
+      <div class="difficulty-chips" id="difficulty-chips"></div>
+
+      <div class="section-title">📄 <span data-lang-key="articles">文章列表</span></div>
+      <div class="article-list" id="article-list"></div>
+    </div>
+  </div>
+
+  <!-- ====== READER PAGE ====== -->
+  <div class="page" id="reader-page">
+    <div class="reader-page">
+      <div class="reader-header">
+        <div class="reader-journal" id="reader-journal"></div>
+        <div class="reader-title" id="reader-title"></div>
+        <div class="reader-meta" id="reader-meta"></div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="reader-progress" id="reader-progress" style="display:none">
+        <div class="reader-progress-bar"><div class="reader-progress-fill" id="reader-progress-fill"></div></div>
+        <div class="reader-progress-text" id="reader-progress-text"></div>
+      </div>
+
+      <div class="toggle-bar">
+        <button class="toggle-btn" id="btn-sentence-tr" onclick="Reader.toggleSentenceTranslation()">
+          📖 <span data-lang-key="sentence_tr">逐句翻译</span>
+        </button>
+        <button class="toggle-btn" id="btn-full-tr" onclick="Reader.toggleFullTranslation()">
+          📄 <span data-lang-key="full_tr">全文翻译</span>
+        </button>
+        <button class="toggle-btn" id="btn-read-aloud" onclick="Reader.toggleReadAloud()">
+          🔊 <span data-lang-key="read_aloud">全文朗读</span>
+        </button>
+        <button class="toggle-btn" id="btn-ai-summary" onclick="Reader.toggleAISummary()" style="display:none">
+          🤖 <span data-lang-key="ai_summary">AI 摘要</span>
+        </button>
+      </div>
+
+      <!-- AI Summary area -->
+      <div class="ai-summary" id="ai-summary" style="display:none"></div>
+
+      <div class="article-content" id="article-content"></div>
+
+      <!-- Article Action Buttons -->
+      <div class="reader-actions" id="reader-actions">
+        <button class="reader-action-btn" id="btn-mark-read" onclick="Reader.toggleRead()">
+          ✅ <span data-lang-key="mark_read">已读</span>
+        </button>
+        <button class="reader-action-btn" id="btn-bookmark" onclick="Reader.toggleBookmark()">
+          🔖 <span data-lang-key="bookmark">收藏</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PROFILE PAGE ====== -->
+  <div class="page" id="profile-page">
+    <div class="profile-page">
+
+      <!-- Streak + Level Card -->
+      <div class="profile-card streak-card">
+        <div class="streak-flame">🔥</div>
+        <div class="streak-number" id="streak-days">0</div>
+        <div class="streak-label" data-lang-key="streak_days">连续打卡天数</div>
+        <div class="streak-stats">
+          <div class="streak-stat">
+            <div class="streak-stat-num" id="streak-total">0</div>
+            <div class="streak-stat-label" data-lang-key="total_reads">累计阅读</div>
+          </div>
+          <div class="streak-stat">
+            <div class="streak-stat-num" id="streak-month">0</div>
+            <div class="streak-stat-label" data-lang-key="month_days">本月打卡</div>
+          </div>
+        </div>
+        <!-- Level bar -->
+        <div class="level-bar-container" id="level-bar-container">
+          <div class="level-icon" id="level-icon">🌱</div>
+          <div class="level-info">
+            <div class="level-name" id="level-name">初学者</div>
+            <div class="level-progress-bar"><div class="level-progress-fill" id="level-progress-fill"></div></div>
+            <div class="level-next" id="level-next">还需 7 天升级</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resume Reading -->
+      <div class="profile-section" id="resume-section" style="display:none">
+        <div class="resume-card" id="resume-card" onclick="Profile._resumeReading()">
+          <div class="resume-icon">📖</div>
+          <div class="resume-info">
+            <div class="resume-label" data-lang-key="resume_reading">继续阅读</div>
+            <div class="resume-title" id="resume-title"></div>
+            <div class="resume-meta" id="resume-meta"></div>
+          </div>
+          <div class="resume-progress"><div class="resume-progress-pie" id="resume-progress-pie"></div></div>
+        </div>
+      </div>
+
+      <!-- Review Alert -->
+      <div class="review-alert" id="review-alert" style="display:none" onclick="Profile._scrollToVocab()">
+        <span>🧠</span>
+        <span id="review-alert-text" data-lang-key="review_due">今日有 0 个单词待复习</span>
+        <span style="margin-left:auto">→</span>
+      </div>
+
+      <!-- Learning Heatmap -->
+      <div class="profile-section">
+        <div class="profile-section-header">
+          <div class="profile-section-title">📊 <span data-lang-key="heatmap">学习热力图</span></div>
+          <span class="profile-section-count" data-lang-key="heatmap_year">近一年</span>
+        </div>
+        <div class="heatmap-container">
+          <div class="heatmap-months" id="heatmap-months"></div>
+          <div class="heatmap-grid" id="heatmap-grid"></div>
+          <div class="heatmap-legend">
+            <span data-lang-key="heatmap_less">少</span>
+            <span class="heatmap-cell level-0"></span>
+            <span class="heatmap-cell level-1"></span>
+            <span class="heatmap-cell level-2"></span>
+            <span class="heatmap-cell level-3"></span>
+            <span class="heatmap-cell level-4"></span>
+            <span data-lang-key="heatmap_more">多</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vocab Notebook -->
+      <div class="profile-section" id="vocab-section">
+        <div class="profile-section-header">
+          <div class="profile-section-title">📖 <span data-lang-key="vocab_notebook">生词本</span></div>
+          <span class="profile-section-count" id="vocab-count">0</span>
+        </div>
+        <div class="vocab-tabs">
+          <button class="vocab-tab active" data-tab="all" data-lang-key="vocab_all">全部</button>
+          <button class="vocab-tab" data-tab="review" data-lang-key="vocab_review">待复习</button>
+          <button class="vocab-tab" data-tab="mastered" data-lang-key="vocab_mastered">已掌握</button>
+        </div>
+        <div class="vocab-grid" id="vocab-grid">
+          <div class="empty-hint" data-lang-key="vocab_empty">点击文章中的单词查词，再点➕加入生词本</div>
+        </div>
+      </div>
+
+      <!-- Bookmarked Articles -->
+      <div class="profile-section">
+        <div class="profile-section-header">
+          <div class="profile-section-title">⭐ <span data-lang-key="my_bookmarks">我的收藏</span></div>
+          <span class="profile-section-count" id="bookmark-count">0</span>
+        </div>
+        <div class="profile-article-list" id="profile-bookmark-list">
+          <div class="empty-hint" data-lang-key="bookmark_empty">还没有收藏文章</div>
+        </div>
+      </div>
+
+      <!-- Read Articles -->
+      <div class="profile-section">
+        <div class="profile-section-header">
+          <div class="profile-section-title">✅ <span data-lang-key="my_reads">已读文章</span></div>
+          <div class="profile-section-actions">
+            <span class="profile-section-count" id="read-count">0</span>
+            <button class="profile-toggle" id="btn-hide-read" onclick="Profile.toggleHideRead()">
+              <span data-lang-key="hide_read">隐藏已读</span>
+              <span class="profile-toggle-switch"></span>
+            </button>
+          </div>
+        </div>
+        <div class="profile-article-list" id="profile-read-list">
+          <div class="empty-hint" data-lang-key="read_empty">还没有已读文章</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Word Popup -->
+  <div class="word-popup" id="word-popup"></div>
+
+  <!-- Reading Goal Toast -->
+  <div class="goal-toast" id="goal-toast" style="display:none">
+    <span>🎉</span> <span id="goal-toast-text"></span>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Scripts -->
+  <script src="js/settings.js"></script>
+  <script src="js/dictionary.js"></script>
+  <script src="js/translator.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/reader.js"></script>
+  <script src="js/profile.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Global error boundary
+    window.onerror = function(msg, url, line) {
+      console.warn('Global error:', msg, 'at', url, 'line', line);
+      return false; // let default handler run too
+    };
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    }
+  </script>
+
+</body>
+</html>
