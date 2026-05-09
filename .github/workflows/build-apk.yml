@@ -14,6 +14,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,24 +45,32 @@ jobs:
         working-directory: android
         run: ../gradle-8.5/bin/gradle assembleDebug --no-daemon
 
-      - name: Copy APK to root
+      - name: Copy APK
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk english-reading.apk
           ls -la english-reading.apk
+          echo "APK_SIZE=$(stat -c%s english-reading.apk)" >> $GITHUB_ENV
+
+      - name: Delete old tag and release
+        run: |
+          gh release delete v1.0 --yes 2>/dev/null || true
+          git push origin :refs/tags/v1.0 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release and Upload APK
+        run: |
+          gh release create v1.0 english-reading.apk \
+            --title "English Reading v1.0" \
+            --notes "Android APK — English magazine reader with word lookup, translations, reading progress, streak tracking, vocabulary notebook, and more.
+
+          Download and install on Android 7.0+ devices." \
+            --repo ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: english-reading-apk
           path: english-reading.apk
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: English Reading v1.0.${{ github.run_number }}
-          files: english-reading.apk
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
