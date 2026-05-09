@@ -50,31 +50,33 @@ const Profile = {
   },
 
   // ===== OPEN / RENDER =====
-
   open() {
     this._loadData();
     this._vocabTab = 'all';
-    this.render();
+    // Switch page first so UI is visible even if render has errors
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('profile-page').classList.add('active');
     document.getElementById('app-title').textContent = Settings.t('profile_title');
     window.scrollTo(0, 0);
     App._updateBackButton();
+    // Render after page switch (failures logged but don't block UI)
+    this.render();
   },
 
   render() {
     this._loadData();
-    this._renderStreak();
-    this._renderLevel();
-    this._renderResume();
-    this._renderReviewAlert();
-    this._renderHeatmap();
-    this._renderVocab();
-    this._renderBookmarks();
-    this._renderReads();
-    this._updateHideReadToggle();
-    this._applyLanguage();
-    this._bindVocabTabs();
+    const safe = (name, fn) => { try { fn(); } catch(e) { console.warn('Profile render failed:', name, e); } };
+    safe('streak', () => this._renderStreak());
+    safe('level', () => this._renderLevel());
+    safe('resume', () => this._renderResume());
+    safe('review', () => this._renderReviewAlert());
+    safe('heatmap', () => this._renderHeatmap());
+    safe('vocab', () => this._renderVocab());
+    safe('bookmarks', () => this._renderBookmarks());
+    safe('reads', () => this._renderReads());
+    safe('hideRead', () => this._updateHideReadToggle());
+    safe('language', () => this._applyLanguage());
+    safe('tabs', () => this._bindVocabTabs());
   },
 
   // ===== STREAK =====
