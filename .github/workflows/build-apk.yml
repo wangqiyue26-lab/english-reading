@@ -31,26 +31,32 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          echo "=== Pre-installed ==="
+          ls $ANDROID_SDK_ROOT/platforms/ 2>/dev/null || echo "no platforms"
+          ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "no build-tools"
+          which gradle 2>/dev/null && gradle --version 2>/dev/null || echo "no system gradle"
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0" 2>&1 || true
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-34" "build-tools;34.0.0" 2>&1
 
-      - name: Download Gradle
+      - name: Download Gradle 8.5
         run: |
-          curl -sSLo /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
-          unzip -q /tmp/gradle.zip -d /tmp
-          echo "/tmp/gradle-8.5/bin" >> $GITHUB_PATH
+          curl -sSL https://services.gradle.org/distributions/gradle-8.5-bin.zip -o gradle.zip
+          unzip -q gradle.zip
+          echo "$PWD/gradle-8.5/bin" >> $GITHUB_PATH
+          $PWD/gradle-8.5/bin/gradle --version
 
       - name: Build APK
-        run: |
-          cd android
-          gradle assembleDebug --no-daemon --stacktrace
+        working-directory: android
+        run: ../gradle-8.5/bin/gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK Artifact
-        if: always()
+      - name: List APKs
+        run: find . -name "*.apk" -ls
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: build-output
-          path: android/app/build/
+          name: english-reading-apk
+          path: android/app/build/outputs/apk/**/*.apk
 
       - name: Create GitHub Release
         if: success()
@@ -58,9 +64,8 @@ jobs:
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: English Reading v1.0.${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/*.apk
+          files: android/app/build/outputs/apk/**/*.apk
           draft: false
           prerelease: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
