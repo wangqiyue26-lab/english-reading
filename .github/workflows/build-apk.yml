@@ -24,25 +24,34 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK Tools
+      - name: Setup Android SDK
         run: |
-          ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          # Ubuntu-latest comes with Android SDK partially installed
-          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" ]; then
-            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
             $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
-          elif [ -d "$ANDROID_SDK_ROOT/tools/bin" ]; then
-            yes | $ANDROID_SDK_ROOT/tools/bin/sdkmanager --licenses
-            $ANDROID_SDK_ROOT/tools/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
           fi
 
-      - name: Build with Gradle
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: assembleDebug --no-daemon --stacktrace
-          build-root-directory: android
+      - name: Setup Gradle
+        run: |
+          cd android
+          curl -sSLo gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          unzip -q gradle.zip
+          echo "GRADLE_HOME=$PWD/gradle-8.11.1" >> $GITHUB_ENV
+          echo "$PWD/gradle-8.11.1/bin" >> $GITHUB_PATH
+          rm gradle.zip
+
+      - name: Generate Gradle Wrapper
+        working-directory: android
+        run: gradle wrapper
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
