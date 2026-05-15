@@ -1,10 +1,11 @@
 /* Service Worker - Offline Caching for English Reading App */
-const CACHE = 'enreading-v1';
+const CACHE = 'enreading-v2';
 const ASSETS = [
   './',
   'index.html',
   'css/style.css',
   'js/settings.js',
+  'js/tts.js',
   'js/dictionary.js',
   'js/translator.js',
   'js/data.js',

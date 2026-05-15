@@ -97,22 +97,6 @@ const Dictionary = {
   },
 
   speak(word) {
-    if (!this.synth) { return null; }
-    try {
-      this.synth.cancel();
-      const voices = this.synth.getVoices();
-      const voice = voices.find(v => v.lang === 'en-US')
-        || (voices.length > 0 ? voices.find(v => v.lang && v.lang.startsWith('en')) : null);
-
-      const utter = new SpeechSynthesisUtterance(word);
-      if (voice) utter.voice = voice;
-      utter.lang = 'en-US';
-      utter.rate = 0.9;
-      utter.pitch = 1;
-      this.synth.speak(utter);
-      return utter;
-    } catch(e) {
-      return null;
-    }
+    return TTS.speak(word);
   }
 };

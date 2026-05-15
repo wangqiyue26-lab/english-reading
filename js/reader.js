@@ -327,20 +327,13 @@ const Reader = {
       btnAdd.classList.add('added');
     });
 
-    document.getElementById('btn-speak').addEventListener('click', () => {
+    document.getElementById('btn-speak').addEventListener('click', async () => {
       const btn = document.getElementById('btn-speak');
       btn.classList.add('playing');
       btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'播放中...':'Playing...');
-      const utter = Dictionary.speak(word);
-      if (utter) {
-        utter.onend = () => {
-          btn.classList.remove('playing');
-          btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak');
-        };
-      } else {
-        btn.classList.remove('playing');
-        btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak');
-      }
+      try { await Dictionary.speak(word); } catch(e) {}
+      btn.classList.remove('playing');
+      btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak');
     });
   },
 
@@ -482,11 +475,6 @@ const Reader = {
   },
 
   _startReading() {
-    if (!window.speechSynthesis) {
-      App.toast(Settings.get('language') === 'zh' ? '浏览器不支持语音合成' : 'Speech not supported');
-      return;
-    }
-
     if (!this.sentences || this.sentences.length === 0) return;
 
     const btn = document.getElementById('btn-read-aloud');
@@ -498,10 +486,9 @@ const Reader = {
     this._readNext();
   },
 
-  _readNext() {
+  async _readNext() {
     if (!this._readState.active) return;
     if (this._readState.paused) return;
-    if (!window.speechSynthesis) { this._stopReading(); return; }
 
     this._readState.currentIdx++;
     if (this._readState.currentIdx >= this.sentences.length) {
@@ -515,34 +502,15 @@ const Reader = {
     // Highlight current sentence
     this._highlightSentence(idx);
 
-    const utter = new SpeechSynthesisUtterance(sentence.text);
+    // Use Google TTS for natural voice, with browser fallback built-in
     try {
-      const voices = speechSynthesis.getVoices();
-      const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang && v.lang.startsWith('en'));
-      if (voice) utter.voice = voice;
-    } catch(e) { /* voice selection failed, use default */ }
-    utter.lang = 'en-US';
-    utter.rate = 0.9;
-    utter.pitch = 1;
-
-    utter.onend = () => {
-      if (this._readState.active && !this._readState.paused) {
-        this._readNext();
-      }
-    };
-
-    utter.onerror = (e) => {
-      if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('TTS error:', e.error);
-        this._readNext(); // skip this sentence and continue
-      }
-    };
-
-    this._readState.utterance = utter;
-    try {
-      speechSynthesis.speak(utter);
+      await TTS.speak(sentence.text);
     } catch(e) {
-      console.warn('speak() failed:', e);
+      // TTS failed silently, continue
+    }
+
+    // Advance to next sentence if still active and not paused
+    if (this._readState.active && !this._readState.paused) {
       this._readNext();
     }
   },
@@ -563,22 +531,22 @@ const Reader = {
   _pauseReading() {
     if (!this._readState.active) return;
     this._readState.paused = true;
-    try { if (window.speechSynthesis) speechSynthesis.pause(); } catch(e) {}
+    TTS.stop();
     const btn = document.getElementById('btn-read-aloud');
     if (btn) btn.innerHTML = Settings.get('language') === 'zh' ? '▶ 继续' : '▶ Resume';
   },
 
   _resumeReading() {
     this._readState.paused = false;
-    try { if (window.speechSynthesis) speechSynthesis.resume(); } catch(e) {}
     const btn = document.getElementById('btn-read-aloud');
     if (btn) btn.innerHTML = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
+    this._readNext();
   },
 
   _stopReading() {
     this._readState.active = false;
     this._readState.paused = false;
-    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e) {}
+    TTS.stop();
 
     // Remove highlight
     try { document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading')); } catch(e) {}
