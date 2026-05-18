@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover, shrink-to-fit=no">
-  <meta name="theme-color" content="#faf9f6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#faf8f5" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -20,13 +20,23 @@
   <!-- Top Navigation Bar -->
   <div class="top-bar" id="top-bar">
     <div style="display:flex;align-items:center;gap:8px;">
-      <button class="btn-icon" id="btn-back" style="display:none">←</button>
+      <button class="btn-icon" id="btn-back" style="display:none" aria-label="Back">←</button>
       <h1 id="app-title">English Reading</h1>
     </div>
     <div class="top-bar-actions">
-      <button class="btn-icon" id="btn-profile" title="Profile">👤</button>
-      <button class="btn-icon" id="btn-settings" title="Settings">⚙️</button>
+      <button class="btn-icon search-toggle-btn" id="btn-search" title="Search" aria-label="Search">🔍</button>
+      <span class="user-display" id="user-display" style="display:none" onclick="Auth.isLoggedIn ? Profile.open() : AuthUI.open()"></span>
+      <button class="btn-icon" id="btn-profile" title="Profile" aria-label="Profile">👤</button>
+      <button class="btn-icon" id="btn-settings" title="Settings" aria-label="Settings">⚙️</button>
     </div>
+  </div>
+
+  <!-- Search Panel -->
+  <div class="search-panel" id="search-panel">
+    <div class="search-input-wrap">
+      <input type="text" id="search-input" placeholder="Search articles..." aria-label="Search articles">
+    </div>
+    <div class="search-results" id="search-results"></div>
   </div>
 
   <!-- ====== SETTINGS MODAL ====== -->
@@ -43,26 +53,80 @@
         </div>
       </div>
       <div class="settings-content" id="settings-content"></div>
-      <button class="settings-close" id="btn-close-settings">✕</button>
+      <button class="settings-close" id="btn-close-settings" aria-label="Close">✕</button>
     </div>
   </div>
 
   <!-- ====== HOME PAGE ====== -->
   <div class="page active" id="home-page">
     <div class="home-page">
+      <!-- Hero Section -->
+      <div class="hero-section" id="hero-section">
+        <div class="hero-greeting" id="hero-greeting">Good afternoon</div>
+        <div class="hero-subtitle" id="hero-subtitle">You've been reading for 12 days 🔥</div>
+        <div class="hero-streak" id="hero-streak-badge" style="display:none">
+          🔥 <span id="hero-streak-text">12-day streak</span>
+        </div>
+        <!-- Daily Recommendation Card -->
+        <div class="daily-recommend" id="daily-recommend" style="display:none">
+          <div class="dr-badge">📰 Today's Pick</div>
+          <div class="dr-title" id="dr-title"></div>
+          <div class="dr-source" id="dr-source"></div>
+          <div class="dr-preview" id="dr-preview"></div>
+          <div class="dr-tags" id="dr-tags"></div>
+          <div class="dr-meta">
+            <span id="dr-readtime"></span>
+            <span class="dr-dot"></span>
+            <span id="dr-difficulty"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Entry Cards -->
+      <div class="quick-entries" id="quick-entries">
+        <div class="quick-entry-card" id="qe-resume" style="display:none" onclick="App._quickResume()">
+          <div class="qe-icon">📖</div>
+          <div class="qe-info">
+            <div class="qe-title" data-lang-key="resume_reading">Continue Reading</div>
+            <div class="qe-sub" id="qe-resume-sub"></div>
+          </div>
+        </div>
+        <div class="quick-entry-card" onclick="App._quickDailyGoal()">
+          <div class="qe-icon">🎯</div>
+          <div class="qe-info">
+            <div class="qe-title" data-lang-key="daily_goal">Daily Goal</div>
+            <div class="qe-sub" id="qe-goal-sub">Set a goal</div>
+          </div>
+        </div>
+        <div class="quick-entry-card" onclick="Profile.open();document.querySelector('.vocab-tab[data-tab=review]')?.click()">
+          <div class="qe-icon">📝</div>
+          <div class="qe-info">
+            <div class="qe-title" data-lang-key="vocab_notebook">Vocabulary</div>
+            <div class="qe-sub" id="qe-vocab-sub">0 words</div>
+          </div>
+        </div>
+        <div class="quick-entry-card" onclick="Profile.open();document.getElementById('profile-bookmark-list')?.scrollIntoView({behavior:'smooth'})">
+          <div class="qe-icon">⭐</div>
+          <div class="qe-info">
+            <div class="qe-title" data-lang-key="my_bookmarks">Bookmarks</div>
+            <div class="qe-sub" id="qe-bookmark-sub">0 articles</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Daily Goal Bar -->
       <div class="goal-bar" id="goal-bar" style="display:none">
         <div class="goal-bar-text"><span data-lang="today_read">今日已读</span>: <span id="goal-count">0</span>/<span id="goal-target">0</span> <span data-lang="articles">篇</span></div>
         <div class="goal-bar-fill"><div class="goal-bar-progress" id="goal-progress"></div></div>
       </div>
 
-      <div class="section-title">📰 <span data-lang-key="journals">期刊</span></div>
+      <div class="section-title">📰 <span data-lang-key="journals">Journals</span></div>
       <div class="journal-grid" id="journal-grid"></div>
 
-      <div class="section-title">📊 <span data-lang-key="difficulty">难度</span></div>
+      <div class="section-title">📊 <span data-lang-key="difficulty">Difficulty</span></div>
       <div class="difficulty-chips" id="difficulty-chips"></div>
 
-      <div class="section-title">📄 <span data-lang-key="articles">文章列表</span></div>
+      <div class="section-title">📄 <span data-lang-key="articles">Articles</span></div>
       <div class="article-list" id="article-list"></div>
     </div>
   </div>
@@ -76,6 +140,12 @@
         <div class="reader-meta" id="reader-meta"></div>
       </div>
 
+      <!-- Reading Speed Display -->
+      <div class="speed-display" id="speed-display" style="display:none">
+        <span>⏱️</span>
+        <span id="speed-text"></span>
+      </div>
+
       <!-- Progress bar -->
       <div class="reader-progress" id="reader-progress" style="display:none">
         <div class="reader-progress-bar"><div class="reader-progress-fill" id="reader-progress-fill"></div></div>
@@ -84,17 +154,30 @@
 
       <div class="toggle-bar">
         <button class="toggle-btn" id="btn-sentence-tr" onclick="Reader.toggleSentenceTranslation()">
-          📖 <span data-lang-key="sentence_tr">逐句翻译</span>
+          📖 <span data-lang-key="sentence_tr">Sentence Tr.</span>
         </button>
         <button class="toggle-btn" id="btn-full-tr" onclick="Reader.toggleFullTranslation()">
-          📄 <span data-lang-key="full_tr">全文翻译</span>
+          📄 <span data-lang-key="full_tr">Full Tr.</span>
         </button>
         <button class="toggle-btn" id="btn-read-aloud" onclick="Reader.toggleReadAloud()">
-          🔊 <span data-lang-key="read_aloud">全文朗读</span>
+          🔊 <span data-lang-key="read_aloud">Read Aloud</span>
+        </button>
+        <button class="focus-mode-btn" id="btn-focus-mode" onclick="Reader.toggleFocusMode()">
+          🧘 <span>Focus</span>
         </button>
         <button class="toggle-btn" id="btn-ai-summary" onclick="Reader.toggleAISummary()" style="display:none">
-          🤖 <span data-lang-key="ai_summary">AI 摘要</span>
+          🤖 <span data-lang-key="ai_summary">AI Summary</span>
         </button>
+      </div>
+
+      <!-- TTS Speed Control -->
+      <div class="tts-speed-bar" id="tts-speed-bar" style="display:none; margin-bottom:12px;">
+        <span style="font-size:12px;color:var(--text-muted);margin-right:8px;">Speed:</span>
+        <button class="tts-speed-btn" data-speed="0.5" onclick="Reader.setTTSSpeed(0.5)">0.5x</button>
+        <button class="tts-speed-btn" data-speed="0.75" onclick="Reader.setTTSSpeed(0.75)">0.75x</button>
+        <button class="tts-speed-btn active" data-speed="1" onclick="Reader.setTTSSpeed(1)">1x</button>
+        <button class="tts-speed-btn" data-speed="1.25" onclick="Reader.setTTSSpeed(1.25)">1.25x</button>
+        <button class="tts-speed-btn" data-speed="1.5" onclick="Reader.setTTSSpeed(1.5)">1.5x</button>
       </div>
 
       <!-- AI Summary area -->
@@ -102,44 +185,86 @@
 
       <div class="article-content" id="article-content"></div>
 
+      <!-- Notes Panel -->
+      <div class="notes-panel" id="notes-panel" style="display:none">
+        <div class="np-title">📝 <span data-lang-key="my_notes">My Notes</span></div>
+        <div id="notes-list"></div>
+        <button class="settings-btn-secondary" id="btn-export-notes" style="margin-top:8px;display:none;" onclick="Reader.exportNotes()">
+          📤 Export Notes
+        </button>
+      </div>
+
       <!-- Article Action Buttons -->
       <div class="reader-actions" id="reader-actions">
         <button class="reader-action-btn" id="btn-mark-read" onclick="Reader.toggleRead()">
-          ✅ <span data-lang-key="mark_read">已读</span>
+          ✅ <span data-lang-key="mark_read">Read</span>
         </button>
         <button class="reader-action-btn" id="btn-bookmark" onclick="Reader.toggleBookmark()">
-          🔖 <span data-lang-key="bookmark">收藏</span>
+          🔖 <span data-lang-key="bookmark">Bookmark</span>
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Focus Mode Overlay -->
+  <div class="focus-overlay" id="focus-overlay">
+    <div class="focus-ring">
+      <svg viewBox="0 0 120 120">
+        <circle class="fr-bg" cx="60" cy="60" r="54"></circle>
+        <circle class="fr-progress" id="focus-ring-progress" cx="60" cy="60" r="54"
+          stroke-dasharray="339.292" stroke-dashoffset="339.292"></circle>
+      </svg>
+    </div>
+    <div class="focus-time" id="focus-time">25:00</div>
+    <div class="focus-label" id="focus-label">Stay focused...</div>
+    <button class="focus-exit" onclick="Reader.exitFocusMode()">End Session</button>
   </div>
 
   <!-- ====== PROFILE PAGE ====== -->
   <div class="page" id="profile-page">
     <div class="profile-page">
 
+      <!-- Weekly Report -->
+      <div class="weekly-report" id="weekly-report" style="display:none">
+        <div class="wr-title">📊 <span data-lang-key="weekly_report">Weekly Report</span></div>
+        <div class="wr-stats">
+          <div class="wr-stat">
+            <div class="wr-stat-num" id="wr-articles">0</div>
+            <div class="wr-stat-label" data-lang-key="articles_read">Articles</div>
+          </div>
+          <div class="wr-stat">
+            <div class="wr-stat-num" id="wr-words">0</div>
+            <div class="wr-stat-label" data-lang-key="words_read">Words</div>
+          </div>
+          <div class="wr-stat">
+            <div class="wr-stat-num" id="wr-minutes">0</div>
+            <div class="wr-stat-label" data-lang-key="minutes_read">Minutes</div>
+          </div>
+        </div>
+        <div class="wr-tip" id="wr-tip"></div>
+      </div>
+
       <!-- Streak + Level Card -->
       <div class="profile-card streak-card">
         <div class="streak-flame">🔥</div>
         <div class="streak-number" id="streak-days">0</div>
-        <div class="streak-label" data-lang-key="streak_days">连续打卡天数</div>
+        <div class="streak-label" data-lang-key="streak_days">Day Streak</div>
         <div class="streak-stats">
           <div class="streak-stat">
             <div class="streak-stat-num" id="streak-total">0</div>
-            <div class="streak-stat-label" data-lang-key="total_reads">累计阅读</div>
+            <div class="streak-stat-label" data-lang-key="total_reads">Total Reads</div>
           </div>
           <div class="streak-stat">
             <div class="streak-stat-num" id="streak-month">0</div>
-            <div class="streak-stat-label" data-lang-key="month_days">本月打卡</div>
+            <div class="streak-stat-label" data-lang-key="month_days">This Month</div>
           </div>
         </div>
-        <!-- Level bar -->
         <div class="level-bar-container" id="level-bar-container">
           <div class="level-icon" id="level-icon">🌱</div>
           <div class="level-info">
-            <div class="level-name" id="level-name">初学者</div>
+            <div class="level-name" id="level-name">Beginner</div>
             <div class="level-progress-bar"><div class="level-progress-fill" id="level-progress-fill"></div></div>
-            <div class="level-next" id="level-next">还需 7 天升级</div>
+            <div class="level-next" id="level-next">7 days to next level</div>
           </div>
         </div>
       </div>
@@ -149,7 +274,7 @@
         <div class="resume-card" id="resume-card" onclick="Profile._resumeReading()">
           <div class="resume-icon">📖</div>
           <div class="resume-info">
-            <div class="resume-label" data-lang-key="resume_reading">继续阅读</div>
+            <div class="resume-label" data-lang-key="resume_reading">Resume Reading</div>
             <div class="resume-title" id="resume-title"></div>
             <div class="resume-meta" id="resume-meta"></div>
           </div>
@@ -160,27 +285,27 @@
       <!-- Review Alert -->
       <div class="review-alert" id="review-alert" style="display:none" onclick="Profile._scrollToVocab()">
         <span>🧠</span>
-        <span id="review-alert-text" data-lang-key="review_due">今日有 0 个单词待复习</span>
+        <span id="review-alert-text" data-lang-key="review_due">0 words due for review</span>
         <span style="margin-left:auto">→</span>
       </div>
 
       <!-- Learning Heatmap -->
       <div class="profile-section">
         <div class="profile-section-header">
-          <div class="profile-section-title">📊 <span data-lang-key="heatmap">学习热力图</span></div>
-          <span class="profile-section-count" data-lang-key="heatmap_year">近一年</span>
+          <div class="profile-section-title">📊 <span data-lang-key="heatmap">Learning Heatmap</span></div>
+          <span class="profile-section-count" data-lang-key="heatmap_year">Past Year</span>
         </div>
         <div class="heatmap-container">
           <div class="heatmap-months" id="heatmap-months"></div>
           <div class="heatmap-grid" id="heatmap-grid"></div>
           <div class="heatmap-legend">
-            <span data-lang-key="heatmap_less">少</span>
+            <span data-lang-key="heatmap_less">Less</span>
             <span class="heatmap-cell level-0"></span>
             <span class="heatmap-cell level-1"></span>
             <span class="heatmap-cell level-2"></span>
             <span class="heatmap-cell level-3"></span>
             <span class="heatmap-cell level-4"></span>
-            <span data-lang-key="heatmap_more">多</span>
+            <span data-lang-key="heatmap_more">More</span>
           </div>
         </div>
       </div>
@@ -188,44 +313,76 @@
       <!-- Vocab Notebook -->
       <div class="profile-section" id="vocab-section">
         <div class="profile-section-header">
-          <div class="profile-section-title">📖 <span data-lang-key="vocab_notebook">生词本</span></div>
+          <div class="profile-section-title">📖 <span data-lang-key="vocab_notebook">Vocabulary</span></div>
           <span class="profile-section-count" id="vocab-count">0</span>
         </div>
+        <div class="vocab-export-bar">
+          <button class="vocab-export-btn" onclick="Profile.exportVocab('csv')">📥 CSV (Anki)</button>
+          <button class="vocab-export-btn" onclick="Profile.exportVocab('markdown')">📝 Markdown</button>
+          <button class="vocab-export-btn" onclick="Profile.exportVocab('text')">📄 Text</button>
+          <button class="vocab-export-btn" onclick="Profile.exportVocab('clipboard')">📋 Copy</button>
+        </div>
         <div class="vocab-tabs">
-          <button class="vocab-tab active" data-tab="all" data-lang-key="vocab_all">全部</button>
-          <button class="vocab-tab" data-tab="review" data-lang-key="vocab_review">待复习</button>
-          <button class="vocab-tab" data-tab="mastered" data-lang-key="vocab_mastered">已掌握</button>
+          <button class="vocab-tab active" data-tab="all" data-lang-key="vocab_all">All</button>
+          <button class="vocab-tab" data-tab="review" data-lang-key="vocab_review">Review</button>
+          <button class="vocab-tab" data-tab="mastered" data-lang-key="vocab_mastered">Mastered</button>
         </div>
         <div class="vocab-grid" id="vocab-grid">
-          <div class="empty-hint" data-lang-key="vocab_empty">点击文章中的单词查词，再点➕加入生词本</div>
+          <div class="empty-hint" data-lang-key="vocab_empty">Tap words while reading to add them here</div>
         </div>
       </div>
 
       <!-- Bookmarked Articles -->
       <div class="profile-section">
         <div class="profile-section-header">
-          <div class="profile-section-title">⭐ <span data-lang-key="my_bookmarks">我的收藏</span></div>
+          <div class="profile-section-title">⭐ <span data-lang-key="my_bookmarks">Bookmarks</span></div>
           <span class="profile-section-count" id="bookmark-count">0</span>
         </div>
         <div class="profile-article-list" id="profile-bookmark-list">
-          <div class="empty-hint" data-lang-key="bookmark_empty">还没有收藏文章</div>
+          <div class="empty-hint" data-lang-key="bookmark_empty">No bookmarks yet</div>
         </div>
       </div>
 
       <!-- Read Articles -->
       <div class="profile-section">
         <div class="profile-section-header">
-          <div class="profile-section-title">✅ <span data-lang-key="my_reads">已读文章</span></div>
+          <div class="profile-section-title">✅ <span data-lang-key="my_reads">Read Articles</span></div>
           <div class="profile-section-actions">
             <span class="profile-section-count" id="read-count">0</span>
             <button class="profile-toggle" id="btn-hide-read" onclick="Profile.toggleHideRead()">
-              <span data-lang-key="hide_read">隐藏已读</span>
+              <span data-lang-key="hide_read">Hide Read</span>
               <span class="profile-toggle-switch"></span>
             </button>
           </div>
         </div>
         <div class="profile-article-list" id="profile-read-list">
-          <div class="empty-hint" data-lang-key="read_empty">还没有已读文章</div>
+          <div class="empty-hint" data-lang-key="read_empty">No articles read yet</div>
+        </div>
+      </div>
+
+      <!-- Focus Sessions -->
+      <div class="profile-section" id="focus-history-section" style="display:none">
+        <div class="profile-section-header">
+          <div class="profile-section-title">🧘 <span data-lang-key="focus_sessions">Focus Sessions</span></div>
+        </div>
+        <div id="focus-history-list"></div>
+      </div>
+
+      <!-- Account -->
+      <div class="profile-section" id="account-section">
+        <div class="profile-section-header">
+          <div class="profile-section-title">🔐 <span data-lang-key="account">Account</span></div>
+        </div>
+        <div id="account-area">
+          <div id="account-logged-out" style="text-align:center;padding:12px 0;">
+            <button class="auth-btn-primary" id="btn-login-prompt" onclick="AuthUI.open('login')" style="width:auto;padding:10px 32px;">Log In / Register</button>
+          </div>
+          <div id="account-logged-in" style="display:none;">
+            <div style="font-family:var(--font-ui);font-size:14px;color:var(--text-secondary);margin-bottom:12px;">
+              <span data-lang-key="logged_in_as">Logged in as</span> <strong id="account-email" style="color:var(--text);"></strong>
+            </div>
+            <button class="auth-btn-primary" id="btn-logout" style="background:var(--bg);color:var(--danger);border:1px solid var(--danger);width:auto;padding:10px 32px;">Log Out</button>
+          </div>
         </div>
       </div>
 
@@ -243,7 +400,194 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
+  <!-- ====== AUTH OVERLAY ====== -->
+  <div class="auth-overlay" id="auth-overlay">
+    <div class="auth-card" id="auth-card">
+      <button class="auth-close" id="auth-close" aria-label="Close">✕</button>
+
+      <!-- Tabs -->
+      <div class="auth-tabs" id="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Log In</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+
+      <!-- Login Form -->
+      <form class="auth-form active" id="auth-form-login" autocomplete="on" novalidate>
+        <div class="auth-field">
+          <label class="auth-label" for="login-email">Email</label>
+          <input type="email" id="login-email" class="auth-input" placeholder="your@email.com" required autocomplete="email">
+          <span class="auth-error" id="login-email-error"></span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="login-password">Password</label>
+          <input type="password" id="login-password" class="auth-input" placeholder="Enter password" required autocomplete="current-password">
+          <span class="auth-error" id="login-password-error"></span>
+        </div>
+        <div class="auth-error" id="login-general-error"></div>
+        <button type="submit" class="auth-btn-primary" id="login-submit">Log In</button>
+        <button type="button" class="auth-btn-link" id="btn-forgot-password">Forgot password?</button>
+      </form>
+
+      <!-- Register Form -->
+      <form class="auth-form" id="auth-form-register" autocomplete="on" novalidate>
+        <div class="auth-field">
+          <label class="auth-label" for="reg-username">Username</label>
+          <input type="text" id="reg-username" class="auth-input" placeholder="Choose a username" required autocomplete="username" minlength="2" maxlength="30">
+          <span class="auth-error" id="reg-username-error"></span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="reg-email">Email</label>
+          <input type="email" id="reg-email" class="auth-input" placeholder="your@email.com" required autocomplete="email">
+          <span class="auth-error" id="reg-email-error"></span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="reg-password">Password</label>
+          <input type="password" id="reg-password" class="auth-input" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6">
+          <span class="auth-error" id="reg-password-error"></span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="reg-confirm">Confirm Password</label>
+          <input type="password" id="reg-confirm" class="auth-input" placeholder="Re-enter password" required autocomplete="new-password" minlength="6">
+          <span class="auth-error" id="reg-confirm-error"></span>
+        </div>
+        <div class="auth-error" id="reg-general-error"></div>
+        <div class="auth-info" id="reg-info"></div>
+        <button type="submit" class="auth-btn-primary" id="reg-submit">Create Account</button>
+      </form>
+
+      <!-- Reset Password Form -->
+      <form class="auth-form" id="auth-form-reset" autocomplete="on" novalidate>
+        <div class="auth-back" id="btn-back-to-login">← Back to login</div>
+        <div class="auth-title">Reset Password</div>
+        <div class="auth-subtitle">Enter your email and we'll send you a reset link</div>
+        <div class="auth-field">
+          <label class="auth-label" for="reset-email">Email</label>
+          <input type="email" id="reset-email" class="auth-input" placeholder="your@email.com" required autocomplete="email">
+          <span class="auth-error" id="reset-email-error"></span>
+        </div>
+        <div class="auth-info" id="reset-info"></div>
+        <div class="auth-error" id="reset-general-error"></div>
+        <button type="submit" class="auth-btn-primary" id="reset-submit">Send Reset Link</button>
+      </form>
+
+      <!-- New Password Form (after reset link clicked) -->
+      <form class="auth-form" id="auth-form-new-password" autocomplete="on" novalidate>
+        <div class="auth-title">Set New Password</div>
+        <div class="auth-subtitle">Choose a new password for your account</div>
+        <div class="auth-field">
+          <label class="auth-label" for="new-password">New Password</label>
+          <input type="password" id="new-password" class="auth-input" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6">
+          <span class="auth-error" id="new-password-error"></span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label" for="new-confirm">Confirm Password</label>
+          <input type="password" id="new-confirm" class="auth-input" placeholder="Re-enter password" required autocomplete="new-password" minlength="6">
+          <span class="auth-error" id="new-confirm-error"></span>
+        </div>
+        <div class="auth-info" id="new-password-info"></div>
+        <div class="auth-error" id="new-password-general-error"></div>
+        <button type="submit" class="auth-btn-primary" id="new-password-submit">Update Password</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Help -->
+  <div class="kbd-help-overlay" id="kbd-help-overlay">
+    <div class="kbd-help-panel">
+      <div class="kbd-help-title">⌨️ Keyboard Shortcuts</div>
+      <div class="kbd-row"><span class="kbd-desc">Previous / Next article</span><span><span class="kbd-key">←</span> <span class="kbd-key">→</span></span></div>
+      <div class="kbd-row"><span class="kbd-desc">Scroll down one screen</span><span class="kbd-key">Space</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Toggle sentence translation</span><span class="kbd-key">T</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Toggle full translation</span><span class="kbd-key">F</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Read aloud / pause</span><span class="kbd-key">S</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Bookmark / unbookmark</span><span class="kbd-key">B</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Increase / decrease font size</span><span><span class="kbd-key">Ctrl+↑</span> <span class="kbd-key">Ctrl+↓</span></span></div>
+      <div class="kbd-row"><span class="kbd-desc">Focus mode</span><span class="kbd-key">Z</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Close panel / go back</span><span class="kbd-key">Esc</span></div>
+      <div class="kbd-row"><span class="kbd-desc">Show this help</span><span class="kbd-key">?</span></div>
+    </div>
+  </div>
+
+  <!-- Onboarding Overlay -->
+  <div class="onboarding-overlay" id="onboarding-overlay">
+    <div class="onboarding-card" id="onboarding-card">
+      <!-- Step 1: Level -->
+      <div class="ob-step active" data-step="1">
+        <div class="ob-title">Welcome! 👋</div>
+        <div class="ob-subtitle">Let's personalize your reading experience</div>
+        <div class="ob-label">Your English level</div>
+        <div class="ob-options" data-key="level">
+          <span class="ob-option" data-value="beginner">🌱 Beginner</span>
+          <span class="ob-option" data-value="intermediate">📖 Intermediate</span>
+          <span class="ob-option" data-value="advanced">📚 Advanced</span>
+          <span class="ob-option" data-value="expert">🎓 Expert</span>
+        </div>
+        <div class="ob-nav">
+          <button class="ob-btn ob-btn-secondary" onclick="App._skipOnboarding()">Skip</button>
+          <button class="ob-btn ob-btn-primary" onclick="App._nextOnboardingStep()">Next →</button>
+        </div>
+      </div>
+      <!-- Step 2: Goal -->
+      <div class="ob-step" data-step="2">
+        <div class="ob-title">Learning goal 🎯</div>
+        <div class="ob-subtitle">What brings you here?</div>
+        <div class="ob-options" data-key="goal">
+          <span class="ob-option" data-value="exam">📝 Exam prep (IELTS/TOEFL/GRE)</span>
+          <span class="ob-option" data-value="work">💼 Career improvement</span>
+          <span class="ob-option" data-value="interest">📰 Interest reading</span>
+          <span class="ob-option" data-value="academic">🔬 Academic research</span>
+        </div>
+        <div class="ob-nav">
+          <button class="ob-btn ob-btn-secondary" onclick="App._prevOnboardingStep()">← Back</button>
+          <button class="ob-btn ob-btn-primary" onclick="App._nextOnboardingStep()">Next →</button>
+        </div>
+      </div>
+      <!-- Step 3: Interests -->
+      <div class="ob-step" data-step="3">
+        <div class="ob-title">Topics you enjoy 📚</div>
+        <div class="ob-subtitle">Pick topics you'd like to read about</div>
+        <div class="ob-options" data-key="interests" data-multi="true">
+          <span class="ob-option" data-value="technology">💻 Technology</span>
+          <span class="ob-option" data-value="economics">📈 Economics</span>
+          <span class="ob-option" data-value="politics">🏛️ Politics</span>
+          <span class="ob-option" data-value="science">🔬 Science</span>
+          <span class="ob-option" data-value="culture">🎭 Culture</span>
+          <span class="ob-option" data-value="business">💼 Business</span>
+          <span class="ob-option" data-value="world">🌍 World</span>
+          <span class="ob-option" data-value="China">🇨🇳 China</span>
+          <span class="ob-option" data-value="environment">🌿 Environment</span>
+        </div>
+        <div class="ob-nav">
+          <button class="ob-btn ob-btn-secondary" onclick="App._prevOnboardingStep()">← Back</button>
+          <button class="ob-btn ob-btn-primary" onclick="App._nextOnboardingStep()">Next →</button>
+        </div>
+      </div>
+      <!-- Step 4: Daily Goal -->
+      <div class="ob-step" data-step="4">
+        <div class="ob-title">Daily target 🎯</div>
+        <div class="ob-subtitle">How much would you like to read each day?</div>
+        <div class="ob-options" data-key="dailyTarget">
+          <span class="ob-option" data-value="1">1 article</span>
+          <span class="ob-option" data-value="3">3 articles</span>
+          <span class="ob-option" data-value="5">5 articles</span>
+          <span class="ob-option" data-value="15">15 minutes</span>
+          <span class="ob-option" data-value="30">30 minutes</span>
+        </div>
+        <div class="ob-nav">
+          <button class="ob-btn ob-btn-secondary" onclick="App._prevOnboardingStep()">← Back</button>
+          <button class="ob-btn ob-btn-primary" onclick="App._finishOnboarding()">Start Reading! 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <!-- Scripts -->
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/auth-ui.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/tts.js"></script>
   <script src="js/dictionary.js"></script>
@@ -253,12 +597,10 @@
   <script src="js/profile.js"></script>
   <script src="js/app.js"></script>
   <script>
-    // Global error boundary
     window.onerror = function(msg, url, line) {
       console.warn('Global error:', msg, 'at', url, 'line', line);
-      return false; // let default handler run too
+      return false;
     };
-    // Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function(){});
     }

@@ -1,45 +1,54 @@
 /* ============================================
-   Settings Module - All App Configuration
+   Settings Module — All App Configuration
    ============================================ */
 
 const Settings = {
   defaults: {
     // System & UI
     language: 'zh',
-    theme: 'light',      // light | dark | system
-    density: 'comfort',  // comfort | compact
+    theme: 'light',         // light (warm) | cool-light | sepia | dark | system
+    density: 'comfort',     // comfort | compact
+    accentColor: 'amber',   // amber | forest | navy | crimson | violet | teal | rose-gold | custom
+    accentCustom: '',       // Custom hex for accent
+    readerBg: 'default',    // default | white | sepia
+    fontPairing: 'classic', // classic | modern | magazine | minimal | comfort
 
     // Reader Layout
-    fontFamily: 'system',    // system | serif | dyslexic
+    fontFamily: 'system',
     fontSize: 18,
     lineSpacing: 1.7,
-    contentWidth: 'medium',  // narrow | medium | wide
+    contentWidth: 'medium',
     immersiveMode: false,
-    progressDisplay: 'percent', // percent | time | hidden
+    progressDisplay: 'percent',
 
     // Learning Assistance
-    vocabLevel: '',        // '' | B1 | B2 | C1 | C2
+    vocabLevel: '',
     vocabHighlight: false,
-    examBank: [],          // ['ielts', 'toefl', 'gre']
-    clickAction: 'instant', // instant | select | sidebar
-    dictionaryType: 'simple', // simple | enen
+    examBank: [],
+    clickAction: 'instant',
+    dictionaryType: 'simple',
 
     // Content & Discovery
     hideBelowDifficulty: '',
     hideAboveDifficulty: '',
-    interests: [],          // ['technology', 'economics', ...]
-    dailyGoal: 0,           // articles per day
+    interests: [],
+    dailyGoal: 0,
     dailyGoalEnabled: false,
-    hideRead: false,        // hide read articles from home
+    hideRead: false,
+
+    // Profile
+    learningGoal: '',
+    onboardingLevel: '',
+    dailyTargetMinutes: 0,
   },
 
   i18n: {
     zh: {
-      settings: '设置', reading: '英语阅读', profile_title: '个人主页',
+      settings: '设置', reading: '英语阅读', profile_title: '个人主页', account: '账户', logged_in_as: '已登录为',
       tab_system: '界面', tab_reader: '阅读器', tab_learning: '学习辅助', tab_content: '内容过滤',
       language: '系统语言', theme: '显示模式', density: '紧凑度',
       lang_zh: '简体中文', lang_en: 'English',
-      theme_light: '浅色', theme_dark: '深色', theme_system: '跟随系统',
+      theme_light: '暖白 (默认)', theme_dark: '深色', theme_system: '跟随系统', theme_clean: '冷白',
       density_comfort: '舒适', density_compact: '紧凑',
       fontFamily: '正文字体', font_system: '系统默认', font_serif: '衬线体 (Serif)', font_dyslexic: '阅读障碍友好',
       fontSize: '字号', lineSpacing: '行间距', contentWidth: '页面宽度',
@@ -51,7 +60,6 @@ const Settings = {
       clickAction: '查词方式', click_instant: '点击即翻译', click_select: '选中后翻译', click_sidebar: '侧边栏常驻',
       dictType: '词典选择', dict_simple: '简明释义', dict_enen: '英英释义',
       aiSummary: 'AI 摘要', aiSummary_desc: '文首显示 3 条要点 (需 API)',
-      grammar: '语法拆解', grammar_desc: '长难句结构分析 (需 API)',
       hideBelow: '屏蔽低于', hideAbove: '屏蔽高于', difficulty_off: '不限',
       interests: '兴趣偏好', dailyGoal: '每日目标', dailyGoal_desc: '篇/天',
       save: '保存', reset: '恢复默认', close: '关闭',
@@ -68,13 +76,18 @@ const Settings = {
       level_0: '初学者', level_1: '阅读爱好者', level_2: '资深读者',
       level_3: '评论员', level_4: '学术专家',
       level_next: '还需 {n} 天升级至 {name}',
+      daily_goal: '每日目标', my_notes: '我的笔记',
+      weekly_report: '本周学习报告', articles_read: '篇数', words_read: '字数',
+      minutes_read: '分钟', focus_sessions: '专注记录',
+      journals: '期刊', difficulty: '难度', sentence_tr: '逐句翻译',
+      full_tr: '全文翻译', read_aloud: '全文朗读', ai_summary: 'AI 摘要',
     },
     en: {
-      settings: 'Settings', reading: 'English Reading', profile_title: 'Profile',
+      settings: 'Settings', reading: 'English Reading', profile_title: 'Profile', account: 'Account', logged_in_as: 'Logged in as',
       tab_system: 'System', tab_reader: 'Reader', tab_learning: 'Learning', tab_content: 'Content',
       language: 'Language', theme: 'Theme', density: 'Density',
       lang_zh: '简体中文', lang_en: 'English',
-      theme_light: 'Light', theme_dark: 'Dark', theme_system: 'Follow System',
+      theme_light: 'Warm Light', theme_dark: 'Dark', theme_system: 'Follow System', theme_clean: 'Cool Light',
       density_comfort: 'Comfort', density_compact: 'Compact',
       fontFamily: 'Font Family', font_system: 'System Default', font_serif: 'Serif', font_dyslexic: 'OpenDyslexic',
       fontSize: 'Font Size', lineSpacing: 'Line Spacing', contentWidth: 'Content Width',
@@ -86,7 +99,6 @@ const Settings = {
       clickAction: 'Lookup Action', click_instant: 'Tap to Translate', click_select: 'Select to Translate', click_sidebar: 'Sidebar',
       dictType: 'Dictionary', dict_simple: 'Simple', dict_enen: 'English-English',
       aiSummary: 'AI Summary', aiSummary_desc: 'Show 3 key points (API needed)',
-      grammar: 'Grammar Analysis', grammar_desc: 'Complex sentence breakdown (API needed)',
       hideBelow: 'Hide Below', hideAbove: 'Hide Above', difficulty_off: 'No Limit',
       interests: 'Interests', dailyGoal: 'Daily Goal', dailyGoal_desc: 'articles/day',
       save: 'Save', reset: 'Reset', close: 'Close',
@@ -103,6 +115,11 @@ const Settings = {
       level_0: 'Beginner', level_1: 'Bookworm', level_2: 'Senior Reader',
       level_3: 'Commentator', level_4: 'Academic Expert',
       level_next: '{n} days to {name}',
+      daily_goal: 'Daily Goal', my_notes: 'My Notes',
+      weekly_report: 'Weekly Report', articles_read: 'Articles', words_read: 'Words',
+      minutes_read: 'Minutes', focus_sessions: 'Focus Sessions',
+      journals: 'Journals', difficulty: 'Difficulty', sentence_tr: 'Sentence Tr.',
+      full_tr: 'Full Translation', read_aloud: 'Read Aloud', ai_summary: 'AI Summary',
     }
   },
 
@@ -116,8 +133,8 @@ const Settings = {
 
   _load() {
     try {
-      const saved = localStorage.getItem('el_settings');
-      this._data = saved ? { ...this.defaults, ...JSON.parse(saved) } : { ...this.defaults };
+      const saved = Sync.get('el_settings');
+      this._data = saved ? { ...this.defaults, ...saved } : { ...this.defaults };
       if (!Array.isArray(this._data.examBank)) this._data.examBank = [];
       if (!Array.isArray(this._data.interests)) this._data.interests = [];
     } catch(e) {
@@ -126,15 +143,10 @@ const Settings = {
     }
   },
 
-  _storageAvailable() {
-    try { const k = '__test__'; localStorage.setItem(k, k); localStorage.removeItem(k); return true; }
-    catch(e) { return false; }
-  },
-
   save() {
     try {
-      localStorage.setItem('el_settings', JSON.stringify(this._data));
-    } catch(e) { /* storage full or unavailable */ }
+      Sync.set('el_settings', this._data);
+    } catch(e) {}
     this._applyAll();
     if (App && App.renderHome) App.renderHome();
   },
@@ -157,21 +169,18 @@ const Settings = {
     // Theme
     root.setAttribute('data-theme', this._data.theme === 'system' ? this._detectSystemTheme() : this._data.theme);
 
+    // Apply accent color
+    this._applyStoredAccent();
+
     // Density
     root.style.setProperty('--density-gap', this._data.density === 'compact' ? '6px' : '10px');
     root.style.setProperty('--density-padding', this._data.density === 'compact' ? '10px' : '14px');
 
     // Font
-    const fontMap = { system: 'var(--font-serif)', serif: '"Georgia", "Times New Roman", serif', dyslexic: '"OpenDyslexic", "Comic Sans MS", cursive' };
+    const fontMap = { system: 'var(--font-body)', serif: '"Georgia", "Times New Roman", serif', dyslexic: '"OpenDyslexic", "Comic Sans MS", cursive' };
     root.style.setProperty('--reader-font', fontMap[this._data.fontFamily] || fontMap.system);
-
-    // Font size
     root.style.setProperty('--reader-font-size', this._data.fontSize + 'px');
-
-    // Line spacing
     root.style.setProperty('--reader-line-height', String(this._data.lineSpacing));
-
-    // Content width
     const widthMap = { narrow: '560px', medium: '680px', wide: '100%' };
     root.style.setProperty('--reader-width', widthMap[this._data.contentWidth] || widthMap.medium);
 
@@ -183,6 +192,43 @@ const Settings = {
       document.removeEventListener('scroll', this._immersiveScroll);
       if (topBar) topBar.style.transform = '';
     }
+  },
+
+  _applyStoredAccent() {
+    const color = this._data.accentColor || 'amber';
+    const custom = this._data.accentCustom || '';
+    const root = document.documentElement;
+
+    if (color === 'custom' && custom) {
+      root.style.setProperty('--accent', custom);
+      root.style.setProperty('--accent-deep', this._darkenHex(custom, 0.15));
+      root.style.setProperty('--accent-light', custom + '18');
+      return;
+    }
+
+    const colors = {
+      'amber':      ['#d4954b', '#b8782e', '#faf3e8'],
+      'forest':     ['#3d8c5e', '#2d6a4f', '#e8f5e9'],
+      'navy':       ['#1a56db', '#1244b0', '#e8f0fe'],
+      'crimson':    ['#c4554d', '#a84040', '#fce8e6'],
+      'violet':     ['#7c3aed', '#6d28d9', '#ede9fe'],
+      'teal':       ['#0d9488', '#0f766e', '#e6fffa'],
+      'rose-gold':  ['#b76e79', '#9a5a64', '#fdf2f4']
+    };
+    const [accent, deep, light] = colors[color] || colors['amber'];
+    root.style.setProperty('--accent', accent);
+    root.style.setProperty('--accent-deep', deep);
+    root.style.setProperty('--accent-light', light);
+  },
+
+  _darkenHex(hex, amount) {
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    const dr = Math.round(r * (1 - amount));
+    const dg = Math.round(g * (1 - amount));
+    const db = Math.round(b * (1 - amount));
+    return '#' + [dr, dg, db].map(c => c.toString(16).padStart(2, '0')).join('');
   },
 
   _immersiveScroll() {
@@ -208,15 +254,12 @@ const Settings = {
     }
   },
 
-  // ============================================================
-  // VOCABULARY HIGHLIGHTING
-  // ============================================================
+  // ===== VOCABULARY HIGHLIGHTING =====
   _vocabLists: null,
 
   async loadVocabLists() {
     if (this._vocabLists) return;
     this._vocabLists = { ALL: new Set() };
-    // Curated lists of common exam words (top 200 per exam)
     const lists = {
       ielts: 'abandon abstract academic access accommodate accompany accumulate accurate achieve acknowledge acquire adapt adequate adjust administration adult advocate affect aggregate aid albeit allocate alter alternative ambiguous amend analogy analyse annual anticipate apparent append appreciate approach appropriate arbitrary area assign assist assume assure attach attain attitude attribute author authority available aware behalf benefit bias brief bulk capable capacity category cease challenge channel chapter chart chemical circumstance cite civil clarify classic clause code coherent coincide collapse colleague commence comment commission commit commodity communicate community compatible compensate compile complement complex component compound comprehensive comprise conceive concentrate concept conclude concurrent conduct confer confine confirm conflict conform consent consequent considerable consist constant constitute construct consult consume contact contemporary context contract contradict contrary contrast contribute controversy convene converse convert convince cooperate coordinate core corporate correspond couple create credit criteria crucial culture currency cycle data debate decade decline deduce defend define definite demonstrate denote deny depress derive design despite detect deviate device devote differentiate dimension diminish discrete discriminate displace display dispose distinct distort distribute diverse document domain domestic dominate draft drama duration dynamic economic edition element eliminate emerge emphasis empirical enable encounter energy enforce enhance enormous ensure entity environment equate equipment equivalent error establish estate estimate ethical ethnic evaluate eventual evident evolve exceed exclude exhibit expand expert explicit exploit export expose external extract facilitate factor feature federal fee file final finance finite flexible fluctuate focus forbid forecast format formula forthcoming foundation founded framework function fund fundamental furthermore gender generate generation global goal grade grant guarantee guideline hence hierarchy highlight hypothesis identical identify ideology ignorance illustrate image immigration impact implement implicit imply impose incentive incidence incline income incorporate index indicate individual induce inevitable infer infrastructure inherent inhibit initial initiate injure innovate input insert insight inspect instance institute integral integrate integrity intelligence intense interact internal interpret interval intervene intrinsic invest investigate invoke involve isolate issue job journal justify label labour layer lecture legal legislation levy liberal licence likewise link locate logic maintain major manipulate manual margin mature maximum mechanism media mediate medical medium mental method migrate military minimal minimum minister ministry minor mode modify monitor motive mutual negate network neutral nevertheless nonetheless norm normal notion nuclear objective obtain obvious occupy occur odd offset ongoing operate option orient outcome output overall overlap overseas panel paradigm paragraph parallel parameter participate partner passive perceive percent period persist perspective phase phenomenon philosophy physical plus policy portion pose positive potential practitioner precede precise predict predominant preliminary presume previous prime principal principle prior priority proceed process professional prohibit project promote proportion prospect protocol provision psychological publication publish purchase pursue qualitative quote radical random range ratio rational react recover refine regime region register regulate reinforce reject relax release relevant reluctance rely remove require research reside resolve resource respond restore restrain restrict retain reveal revenue reverse revise revolution rigid role route scenario schedule scheme scope section sector secure seek select sequence series sex shift significant similar simulate site so-called sole somewhat source specific sphere stable statistic status straightforward strategy stress structure style submit subordinate subsequent subsidy substitute successor sufficient sum summary supplement survey survive suspend sustain symbol tape target task team technical technique technology temporary tension terminate text theme theoretical theory thereby thesis topic trace tradition transfer transform transit transmit transport trend trigger ultimate undergo underlie undertake uniform unique utilise valid vary vehicle version via violate virtual visible vision visual volume voluntary welfare whereas widespread',
       toefl: 'abandon abstract academy access accommodate accompany accumulate accurate achieve acknowledge acquire adapt adequate adjacent adjust administrate adult advocate affect aggregate aid albeit allocate alter alternative ambiguous amend analogy analyze annual anticipate apparent append appreciate approach appropriate approximate arbitrary area aspect assemble assess assign assist assume assure attach attain attitude attribute audience authority available aware behalf benefit bias bond brief bulk capable capacity category cease challenge channel chapter chart chemical circumstance cite civil claim clarify classic clause code coherent coincide collapse colleague commence comment commission commit commodity communicate community compatible compensate compile complement complex component compound comprehensive comprise conceive concentrate concept conclude concurrent conduct confer confine confirm conflict conform consent consequent considerable consist constant constitute construct consult consume contact contemporary context contract contradict contrary contrast contribute controversy convene converse convert convince cooperate coordinate core corporate correspond couple create credit criteria crucial culture currency cycle data debate decade decline deduce defend define definite demonstrate denote deny depress derive design despite detect deviate device devote differentiate dimension diminish discrete discriminate displace display dispose distinct distort distribute diverse document domain domestic dominate draft drama duration dynamic economic edition element eliminate emerge emphasis empirical enable encounter energy enforce enhance enormous ensure entity environment equate equipment equivalent error establish estate estimate ethical ethnic evaluate eventual evident evolve exceed exclude exhibit expand expert explicit exploit export expose external extract facilitate factor feature federal fee file final finance finite flexible fluctuate focus forbid forecast format formula forthcoming foundation founded framework function fund fundamental furthermore gender generate generation global goal grade grant guarantee guideline hence hierarchy highlight hypothesis identical identify ideology ignorance illustrate image immigration impact implement implicit imply impose incentive incidence incline income incorporate index indicate individual induce inevitable infer infrastructure inherent inhibit initial initiate injure innovate input insert insight inspect instance institute integral integrate integrity intelligence intense interact internal interpret interval intervene intrinsic invest investigate invoke involve isolate issue job journal justify label labour layer lecture legal legislation levy liberal licence likewise link locate logic maintain major manipulate manual margin mature maximum mechanism media mediate medical medium mental method migrate military minimal minimum minister ministry minor mode modify monitor motive mutual negate network neutral nevertheless nonetheless norm normal notion nuclear objective obtain obvious occupy occur odd offset ongoing operate option orient outcome output overall overlap overseas panel paradigm paragraph parallel parameter participate partner passive perceive percent period persist perspective phase phenomenon philosophy physical plus policy portion pose positive potential practitioner precede precise predict predominant preliminary presume previous prime principal principle prior priority proceed process professional prohibit project promote proportion prospect protocol provision psychological publication publish purchase pursue qualitative quote radical random range ratio rational react recover refine regime region register regulate reinforce reject relax release relevant reluctance rely remove require research reside resolve resource respond restore restrain restrict retain reveal revenue reverse revise revolution rigid role route scenario schedule scheme scope section sector secure seek select sequence series sex shift significant similar simulate site so-called sole somewhat source specific sphere stable statistic status straightforward strategy stress structure style submit subordinate subsequent subsidy substitute successor sufficient sum summary supplement survey survive suspend sustain symbol tape target task team technical technique technology temporary tension terminate text theme theoretical theory thereby thesis topic trace tradition transfer transform transit transmit transport trend trigger ultimate undergo underlie undertake uniform unique utilise valid vary vehicle version via violate virtual visible vision visual volume voluntary welfare whereas widespread',
@@ -225,7 +268,6 @@ const Settings = {
 
     for (const [exam, words] of Object.entries(lists)) {
       const ws = new Set(words.split(' ').filter(w => w.length > 2));
-      // Also add inflected forms
       for (const w of [...ws]) {
         if (w.endsWith('e')) { ws.add(w + 'd'); ws.add(w + 's'); ws.add(w.slice(0, -1) + 'ing'); }
         else if (w.endsWith('y')) { ws.add(w.slice(0, -1) + 'ied'); ws.add(w.slice(0, -1) + 'ies'); }
@@ -236,7 +278,6 @@ const Settings = {
     }
   },
 
-  /** Return labels for a word */
   getWordLabels(word) {
     if (!this._vocabLists) return [];
     const w = word.toLowerCase();
@@ -251,10 +292,8 @@ const Settings = {
     if (!this._vocabLists || !this._data.vocabHighlight) return false;
     const level = this._data.vocabLevel;
     if (!level) {
-      // Highlight any exam word
       return this._vocabLists['ALL'].has(word.toLowerCase());
     }
-    // Check level-appropriate highlighting
     return this._vocabLists['ALL'].has(word.toLowerCase());
   }
 };

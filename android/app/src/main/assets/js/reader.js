@@ -1,5 +1,7 @@
 /* ============================================
-   Reader Module - Reading Interface with Settings
+   Reader Module — Reading, Focus Mode,
+   Speed Tracking, Notes & Highlighting,
+   Enhanced TTS, Keyboard Shortcuts
    ============================================ */
 
 const Reader = {
@@ -10,6 +12,10 @@ const Reader = {
   progressTimer: null,
   _readArticles: [],
   _bookmarkedArticles: [],
+  _notes: {},        // { articleId: [{ id, text, note, color, timestamp }] }
+  _startTime: null,  // For speed tracking
+  _ttsSpeed: 1,
+  _focusSession: { active: false, startTime: null, duration: 25, timerId: null, elapsed: 0 },
   state: {
     sentenceTranslation: false,
     fullTranslation: false,
@@ -19,6 +25,7 @@ const Reader = {
   init() {
     this.popupEl = document.getElementById('word-popup');
     this._loadArticleStates();
+    this._loadNotes();
     this._bindEvents();
   },
 
@@ -29,72 +36,87 @@ const Reader = {
       }
     });
 
-    // Scroll-based progress
     document.addEventListener('scroll', () => this._updateProgress(), { passive: true });
+
+    // Text selection for highlighting
+    document.addEventListener('mouseup', () => this._onTextSelect());
+    document.addEventListener('touchend', () => {
+      setTimeout(() => this._onTextSelect(), 100);
+    });
   },
 
+  _loadNotes() {
+    try {
+      this._notes = Sync.get('el_notes') || {};
+    } catch(e) {
+      this._notes = {};
+    }
+  },
+
+  _saveNotes() {
+    try { Sync.set('el_notes', this._notes); } catch(e) {}
+  },
+
+  // ===== OPEN ARTICLE =====
   async open(article) {
-    // Stop any ongoing reading
     this._stopReading();
-    
+
     this.article = article;
     this.sentences = [];
     this.state.sentenceTranslation = false;
     this.state.fullTranslation = false;
     this.state.aiSummary = false;
+    this._startTime = Date.now();
 
-    // Update action button states
     this._updateActionButtons();
-
-    // Apply reader styles from settings
     this._applySettings();
 
-    // Update header
     const jName = Settings.get('language') === 'zh' ? (article.journalZh || article.journal) : (article.journalEn || article.journal);
     document.getElementById('reader-journal').textContent = jName;
     document.getElementById('reader-title').textContent = article.title;
-    document.getElementById('reader-meta').innerHTML = `
-      ${article.difficultyLabel}
-      <span class="dot" style="display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--text-muted)"></span>
-      ${article.date}
-      <span class="dot" style="display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--text-muted)"></span>
-      ${article.wordCount} words
-    `;
+    const wpm = 200;
+    const readTime = Math.max(1, Math.round(article.wordCount / wpm));
+    document.getElementById('reader-meta').innerHTML =
+      '<span class="ac-difficulty-tag ' + article.difficulty + '">' + article.difficultyLabel + '</span>' +
+      '<span style="margin:0 6px;color:var(--text-muted)">·</span>' +
+      article.date +
+      '<span style="margin:0 6px;color:var(--text-muted)">·</span>' +
+      article.wordCount + ' words' +
+      '<span style="margin:0 6px;color:var(--text-muted)">·</span>' +
+      '~' + readTime + ' min';
 
-    // Reset UI
     document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('btn-ai-summary').style.display = 'none';
     document.getElementById('ai-summary').style.display = 'none';
+    document.getElementById('speed-display').style.display = 'none';
     this._hideProgress();
 
-    // Parse and render
     this._parseSentences(article.content);
     Translator.setArticle(article.id, this.sentences, article.translation || '');
     this._render();
 
-    // Show reader page
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('reader-page').classList.add('active');
     document.getElementById('app-title').textContent = jName;
     window.scrollTo(0, 0);
 
-    // Show progress after render
     setTimeout(() => this._updateProgress(), 200);
+
+    // Render notes for this article
+    this._renderNotes();
   },
 
   _applySettings() {
     const root = document.documentElement;
-    const fontMap = { system: 'var(--font-serif)', serif: '"Georgia", "Times New Roman", serif', dyslexic: '"OpenDyslexic", "Comic Sans MS", cursive' };
-    root.style.setProperty('--reader-font', fontMap[Settings.get('fontFamily')] || 'var(--font-serif)');
+    const fontMap = { system: 'var(--font-body)', serif: '"Georgia", "Times New Roman", serif', dyslexic: '"OpenDyslexic", "Comic Sans MS", cursive' };
+    root.style.setProperty('--reader-font', fontMap[Settings.get('fontFamily')] || 'var(--font-body)');
     root.style.setProperty('--reader-font-size', Settings.get('fontSize') + 'px');
     root.style.setProperty('--reader-line-height', String(Settings.get('lineSpacing')));
     const widthMap = { narrow: '560px', medium: '680px', wide: '100%' };
     root.style.setProperty('--reader-width', widthMap[Settings.get('contentWidth')] || '680px');
 
-    // Apply to article content
     const content = document.getElementById('article-content');
     if (content) {
-      content.style.fontFamily = fontMap[Settings.get('fontFamily')] || 'var(--font-serif)';
       content.style.fontSize = Settings.get('fontSize') + 'px';
       content.style.lineHeight = String(Settings.get('lineSpacing'));
     }
@@ -103,7 +125,6 @@ const Reader = {
       page.style.maxWidth = widthMap[Settings.get('contentWidth')] || '680px';
     }
 
-    // Progress display
     this._hideProgress();
     if (Settings.get('progressDisplay') !== 'hidden') {
       document.getElementById('reader-progress').style.display = '';
@@ -123,9 +144,7 @@ const Reader = {
 
     const rect = container.getBoundingClientRect();
     const winHeight = window.innerHeight;
-    // Total scrollable distance: content height minus viewport height
     const maxScroll = Math.max(1, container.scrollHeight - winHeight);
-    // How far the container top has scrolled above the viewport top
     const scrolled = Math.max(0, -rect.top);
     const pct = Math.min(100, Math.round((scrolled / maxScroll) * 100));
 
@@ -135,23 +154,45 @@ const Reader = {
     if (mode === 'percent') {
       document.getElementById('reader-progress-text').textContent = pct + '%';
     } else if (mode === 'time') {
-      const wpm = 200; // avg reading speed
-      const remaining = this.article.wordCount / wpm;
-      const remainingNow = Math.max(1, Math.round(remaining * (1 - pct / 100)));
-      const label = Settings.get('language') === 'zh' ? '剩余约 ' + remainingNow + ' 分钟' : '~' + remainingNow + ' min left';
+      const wpm = 200;
+      const remaining = Math.max(1, Math.round((this.article.wordCount / wpm) * (1 - pct / 100)));
+      const label = Settings.get('language') === 'zh' ? '剩余约 ' + remaining + ' 分钟' : '~' + remaining + ' min left';
       document.getElementById('reader-progress-text').textContent = label;
     }
 
-    // Save resume-reading state (throttled by scroll events)
     if (this.article) {
       if (pct >= 100) {
         Profile.clearLastRead();
+        this._showSpeed();
       } else if (pct > 0) {
         Profile.saveLastRead(this.article.id, pct);
       }
     }
   },
 
+  _showSpeed() {
+    if (!this._startTime || !this.article) return;
+    const elapsedMin = (Date.now() - this._startTime) / 60000;
+    if (elapsedMin < 0.5) return;
+    const wpm = Math.round(this.article.wordCount / elapsedMin);
+    const display = document.getElementById('speed-display');
+    const isZh = Settings.get('language') === 'zh';
+    document.getElementById('speed-text').textContent = isZh
+      ? '你的阅读速度：' + wpm + ' 词/分钟 · 用时 ' + Math.round(elapsedMin) + ' 分钟'
+      : 'Your reading speed: ' + wpm + ' wpm · ' + Math.round(elapsedMin) + ' min';
+    display.style.display = '';
+
+    // Save to stats
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      let speeds = Sync.get('el_reading_speeds') || {};
+      if (!speeds[today]) speeds[today] = [];
+      speeds[today].push({ articleId: this.article.id, wpm, elapsedMin });
+      Sync.set('el_reading_speeds', speeds);
+    } catch(e) {}
+  },
+
+  // ===== PARSE & RENDER =====
   _parseSentences(text) {
     const paragraphs = text.split('\n\n').filter(p => p.trim());
     this.sentences = [];
@@ -207,12 +248,10 @@ const Reader = {
           wordSpan.className = 'word-span';
           wordSpan.textContent = token;
 
-          // Vocab highlighting
           if (vocabHighlight) {
             const labels = Settings.getWordLabels(token);
             if (labels.length > 0) {
               wordSpan.classList.add('vocab-word-highlight');
-              // Add exam labels
               labels.forEach(label => {
                 const lbl = document.createElement('span');
                 lbl.className = 'vocab-label ' + label.toLowerCase();
@@ -229,7 +268,6 @@ const Reader = {
               this.showWordPopup(word, e);
             });
           } else if (clickAction === 'select') {
-            // Require double-click or selection
             wordSpan.addEventListener('dblclick', (e) => {
               e.stopPropagation();
               this.showWordPopup(word, e);
@@ -247,30 +285,268 @@ const Reader = {
     container.innerHTML = '';
     container.appendChild(fragment);
 
-    // Learn more link
+    // Apply existing highlights for this article
+    this._applyHighlights();
+
     const learnMore = document.createElement('div');
     learnMore.style.cssText = 'margin-top:20px;text-align:center;font-size:12px;color:var(--text-muted);';
     learnMore.textContent = Settings.get('language') === 'zh'
-      ? '💡 点击单词查释义 | 长按可选词后双击翻译'
-      : '💡 Tap word for definition | Select + double-tap to translate';
+      ? '💡 点击单词查释义 | 选中文字可添加笔记 ✏️'
+      : '💡 Tap word for definition | Select text to add notes ✏️';
     container.appendChild(learnMore);
 
     const ft = document.getElementById('full-translation-container');
     if (ft) ft.remove();
   },
 
+  // ===== NOTES & HIGHLIGHTING =====
+  _onTextSelect() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+
+    const selectedText = selection.toString().trim();
+    if (selectedText.length < 3) return;
+
+    // Check if inside article content
+    const container = document.getElementById('article-content');
+    if (!container || !container.contains(selection.anchorNode)) return;
+
+    // Show a small note prompt
+    this._showNotePrompt(selectedText, selection);
+  },
+
+  _showNotePrompt(text, selection) {
+    // Remove existing prompt
+    const existing = document.getElementById('note-prompt');
+    if (existing) existing.remove();
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    const prompt = document.createElement('div');
+    prompt.id = 'note-prompt';
+    prompt.style.cssText =
+      'position:fixed;z-index:1900;background:var(--bg-card);border:1px solid var(--accent);' +
+      'border-radius:var(--radius-md);padding:8px 12px;box-shadow:var(--shadow-lg);' +
+      'display:flex;gap:6px;align-items:center;font-size:13px;';
+    prompt.style.top = (rect.top - 50) + 'px';
+    prompt.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+
+    const colors = ['#ffeb3b', '#a5d6a7', '#90caf9', '#f48fb1', '#ffcc80'];
+    const colorBtns = colors.map(c =>
+      '<span style="width:16px;height:16px;border-radius:50%;background:' + c +
+      ';cursor:pointer;border:2px solid transparent;display:inline-block;" ' +
+      'onclick="Reader._addHighlight(\'' + this._escapeJs(text) + '\',\'' + c + '\',event)"></span>'
+    ).join('');
+
+    const isZh = Settings.get('language') === 'zh';
+    prompt.innerHTML =
+      colorBtns +
+      '<span style="color:var(--text-muted);margin:0 4px;">|</span>' +
+      '<button style="background:var(--accent);color:#fff;border:none;padding:4px 10px;border-radius:12px;cursor:pointer;font-size:12px;" ' +
+      'onclick="Reader._addNotePrompt(\'' + this._escapeJs(text) + '\',event)">' +
+      (isZh ? '笔记' : 'Note') +
+      '</button>' +
+      '<button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 4px;" ' +
+      'onclick="document.getElementById(\'note-prompt\').remove()">✕</button>';
+
+    document.body.appendChild(prompt);
+
+    // Auto-remove after 8 seconds
+    setTimeout(() => { const p = document.getElementById('note-prompt'); if (p) p.remove(); }, 8000);
+  },
+
+  _escapeJs(s) {
+    return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  },
+
+  _addHighlight(text, color, event) {
+    event && event.stopPropagation();
+    if (!this.article) return;
+
+    const articleId = this.article.id;
+    if (!this._notes[articleId]) this._notes[articleId] = [];
+
+    this._notes[articleId].push({
+      id: Date.now().toString(36),
+      text: text,
+      note: '',
+      color: color,
+      timestamp: new Date().toISOString()
+    });
+    this._saveNotes();
+
+    // Remove prompt
+    const prompt = document.getElementById('note-prompt');
+    if (prompt) prompt.remove();
+
+    // Re-render to show highlight
+    this._applyHighlights();
+    this._renderNotes();
+
+    const isZh = Settings.get('language') === 'zh';
+    App.toast(isZh ? '已高亮 ✨' : 'Highlighted ✨');
+  },
+
+  _addNotePrompt(text, event) {
+    event && event.stopPropagation();
+    const prompt = document.getElementById('note-prompt');
+    const isZh = Settings.get('language') === 'zh';
+
+    if (prompt) {
+      prompt.innerHTML =
+        '<textarea id="note-textarea" style="min-width:180px;min-height:50px;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:13px;resize:vertical;font-family:var(--font-ui);" ' +
+        'placeholder="' + (isZh ? '写点笔记...' : 'Write a note...') + '"></textarea>' +
+        '<button style="background:var(--accent);color:#fff;border:none;padding:4px 12px;border-radius:12px;cursor:pointer;font-size:12px;" ' +
+        'onclick="Reader._saveNote(\'' + this._escapeJs(text) + '\')">' +
+        (isZh ? '保存' : 'Save') +
+        '</button>' +
+        '<button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;" ' +
+        'onclick="document.getElementById(\'note-prompt\').remove()">✕</button>';
+    }
+  },
+
+  _saveNote(text) {
+    if (!this.article) return;
+    const noteText = document.getElementById('note-textarea')?.value?.trim();
+    if (!noteText) return;
+
+    const articleId = this.article.id;
+    if (!this._notes[articleId]) this._notes[articleId] = [];
+
+    this._notes[articleId].push({
+      id: Date.now().toString(36),
+      text: text,
+      note: noteText,
+      color: '#ffeb3b',
+      timestamp: new Date().toISOString()
+    });
+    this._saveNotes();
+
+    const prompt = document.getElementById('note-prompt');
+    if (prompt) prompt.remove();
+
+    this._applyHighlights();
+    this._renderNotes();
+
+    const isZh = Settings.get('language') === 'zh';
+    App.toast(isZh ? '笔记已保存 📝' : 'Note saved 📝');
+  },
+
+  _applyHighlights() {
+    if (!this.article) return;
+    const articleId = this.article.id;
+    const notes = this._notes[articleId];
+    if (!notes || notes.length === 0) return;
+
+    const container = document.getElementById('article-content');
+    if (!container) return;
+
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    for (const note of notes) {
+      for (const node of textNodes) {
+        const idx = node.textContent.indexOf(note.text);
+        if (idx >= 0) {
+          const range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + note.text.length);
+          const span = document.createElement('span');
+          span.className = 'user-highlight' + (note.note ? ' has-note' : '');
+          span.style.background = note.color;
+          span.title = note.note || note.text;
+          span.setAttribute('data-note-id', note.id);
+          try { range.surroundContents(span); } catch(e) {}
+          break;
+        }
+      }
+    }
+  },
+
+  _renderNotes() {
+    const panel = document.getElementById('notes-panel');
+    const list = document.getElementById('notes-list');
+    if (!this.article || !panel || !list) return;
+
+    const articleId = this.article.id;
+    const notes = this._notes[articleId];
+    if (!notes || notes.length === 0) {
+      panel.style.display = 'none';
+      return;
+    }
+
+    panel.style.display = '';
+    const isZh = Settings.get('language') === 'zh';
+    list.innerHTML = notes.slice().reverse().map(n =>
+      '<div class="note-item">' +
+        '<div class="ni-quote">' + this._escapeHtml(n.text) + '</div>' +
+        (n.note ? '<div class="ni-text">' + this._escapeHtml(n.note) + '</div>' : '') +
+        '<div class="ni-meta">' +
+          '<span>' + new Date(n.timestamp).toLocaleDateString() + '</span>' +
+          '<button class="ni-delete" onclick="Reader._deleteNote(\'' + n.id + '\')">' +
+            (isZh ? '删除' : 'Delete') +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    ).join('');
+
+    const exportBtn = document.getElementById('btn-export-notes');
+    if (exportBtn) exportBtn.style.display = notes.length > 0 ? '' : 'none';
+  },
+
+  _deleteNote(noteId) {
+    if (!this.article) return;
+    const articleId = this.article.id;
+    this._notes[articleId] = (this._notes[articleId] || []).filter(n => n.id !== noteId);
+    this._saveNotes();
+    this._render();
+    this._renderNotes();
+  },
+
+  exportNotes() {
+    if (!this.article) return;
+    const articleId = this.article.id;
+    const notes = this._notes[articleId] || [];
+    if (notes.length === 0) return;
+
+    let md = '# Notes: ' + this.article.title + '\n\n';
+    notes.forEach((n, i) => {
+      md += '**' + (i + 1) + '.** "' + n.text + '"\n';
+      if (n.note) md += '  > ' + n.note + '\n';
+      md += '\n';
+    });
+
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'notes_' + this.article.id + '.md';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    const isZh = Settings.get('language') === 'zh';
+    App.toast(isZh ? '笔记已导出 📤' : 'Notes exported 📤');
+  },
+
+  _escapeHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  // ===== WORD POPUP =====
   async showWordPopup(word, event) {
     this.currentWord = word;
     const dictType = Settings.get('dictionaryType');
 
-    this.popupEl.innerHTML = `<div class="loading" style="padding:12px"><div class="spinner"></div> ${Settings.get('language')==='zh'?'查询中...':'Looking up...'}</div>`;
+    this.popupEl.innerHTML = '<div class="loading" style="padding:12px"><div class="spinner"></div> ' + (Settings.get('language')==='zh'?'查询中...':'Looking up...') + '</div>';
     this.popupEl.classList.add('visible');
     this._positionPopup(event);
 
     const result = await Dictionary.lookup(word);
     const isEnEn = dictType === 'enen';
 
-    // Store for add-to-vocab button
     this._pendingVocab = {
       word: word,
       phonetic: result.phonetic || '',
@@ -279,37 +555,34 @@ const Reader = {
 
     let defsHtml = '';
     for (const m of (result.meanings || []).slice(0, 4)) {
-      if (isEnEn && m.pos === 'zh') continue; // skip Chinese in English-only mode
-      if (!isEnEn && m.pos !== 'zh' && result.meanings.some(x => x.pos === 'zh')) continue; // prefer Chinese if available
-      const posLabel = m.pos && m.pos !== 'zh' ? `<span style="color:var(--text-muted);font-size:11px">${m.pos}</span> ` : '';
-      defsHtml += `<div class="wp-def">${posLabel}${m.definition}</div>`;
+      if (isEnEn && m.pos === 'zh') continue;
+      if (!isEnEn && m.pos !== 'zh' && result.meanings.some(x => x.pos === 'zh')) continue;
+      const posLabel = m.pos && m.pos !== 'zh' ? '<span style="color:var(--text-muted);font-size:11px">' + m.pos + '</span> ' : '';
+      defsHtml += '<div class="wp-def">' + posLabel + m.definition + '</div>';
     }
 
     if (!defsHtml) defsHtml = '<div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">' + (Settings.get('language')==='zh'?'未找到释义':'No definition') + '</div>';
 
-    // Vocab labels
     const labels = Settings.getWordLabels(word);
     const labelsHtml = labels.length > 0
-      ? `<div style="margin-bottom:6px">${labels.map(l => `<span class="vocab-label ${l.toLowerCase()}" style="font-size:10px;vertical-align:baseline">${l}</span>`).join(' ')}</div>`
+      ? '<div style="margin-bottom:6px">' + labels.map(l => '<span class="vocab-label ' + l.toLowerCase() + '" style="font-size:10px;vertical-align:baseline">' + l + '</span>').join(' ') + '</div>'
       : '';
 
-    this.popupEl.innerHTML = `
-      <div class="wp-word">${result.word}</div>
-      ${result.phonetic ? `<div class="wp-phonetic">/${result.phonetic}/</div>` : ''}
-      ${labelsHtml}
-      ${defsHtml ? `<div class="wp-definitions">${defsHtml}</div>` : ''}
-      <div class="wp-actions">
-        <button class="wp-btn" id="btn-speak">🔊 ${Settings.get('language')==='zh'?'朗读':'Speak'}</button>
-        <button class="wp-btn wp-btn-add" id="btn-add-vocab">➕ ${Settings.get('language')==='zh'?'生词本':'Vocab'}</button>
-      </div>
-    `;
+    this.popupEl.innerHTML =
+      '<div class="wp-word">' + result.word + '</div>' +
+      (result.phonetic ? '<div class="wp-phonetic">/' + result.phonetic + '/</div>' : '') +
+      labelsHtml +
+      (defsHtml ? '<div class="wp-definitions">' + defsHtml + '</div>' : '') +
+      '<div class="wp-actions">' +
+        '<button class="wp-btn" id="btn-speak">🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak') + '</button>' +
+        '<button class="wp-btn wp-btn-add" id="btn-add-vocab">➕ ' + (Settings.get('language')==='zh'?'生词本':'Vocab') + '</button>' +
+      '</div>';
 
     this._positionPopup(event);
 
-    // Check if word already in vocab
     let inVocab = false;
     try {
-      const vocab = JSON.parse(localStorage.getItem('el_vocab') || '[]');
+      const vocab = Sync.get('el_vocab') || [];
       inVocab = vocab.some(w => w.word.toLowerCase() === word.toLowerCase());
     } catch(e) {}
 
@@ -327,20 +600,13 @@ const Reader = {
       btnAdd.classList.add('added');
     });
 
-    document.getElementById('btn-speak').addEventListener('click', () => {
+    document.getElementById('btn-speak').addEventListener('click', async () => {
       const btn = document.getElementById('btn-speak');
       btn.classList.add('playing');
       btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'播放中...':'Playing...');
-      const utter = Dictionary.speak(word);
-      if (utter) {
-        utter.onend = () => {
-          btn.classList.remove('playing');
-          btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak');
-        };
-      } else {
-        btn.classList.remove('playing');
-        btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak');
-      }
+      try { await Dictionary.speak(word); } catch(e) {}
+      btn.classList.remove('playing');
+      btn.textContent = '🔊 ' + (Settings.get('language')==='zh'?'朗读':'Speak');
     });
   },
 
@@ -350,21 +616,19 @@ const Reader = {
     const isMobile = window.innerWidth < 768;
     let x, y;
 
-    if (event.touches) {
+    if (event.touches && event.touches.length > 0) {
       x = event.touches[0].clientX; y = event.touches[0].clientY;
     } else {
       x = event.clientX; y = event.clientY;
     }
 
     if (isMobile) {
-      // On mobile: center at bottom of screen, easier to reach
       popup.style.left = '50%';
       popup.style.top = 'auto';
       popup.style.bottom = '80px';
       popup.style.transform = 'translateX(-50%)';
       popup.style.maxWidth = 'calc(100vw - 32px)';
     } else {
-      // Desktop: position near the word
       popup.style.bottom = 'auto';
       popup.style.transform = '';
       const h = popup.offsetHeight || 150;
@@ -386,7 +650,6 @@ const Reader = {
   },
 
   // ===== TRANSLATION TOGGLES =====
-
   async toggleSentenceTranslation() {
     this.state.sentenceTranslation = !this.state.sentenceTranslation;
     const btn = document.getElementById('btn-sentence-tr');
@@ -400,15 +663,33 @@ const Reader = {
 
         const zhDiv = document.createElement('div');
         zhDiv.className = 'zh';
-        zhDiv.textContent = '...';
+        zhDiv.style.cssText = 'display:flex;align-items:flex-start;gap:8px;';
+
+        const textSpan = document.createElement('span');
+        textSpan.style.cssText = 'flex:1';
+        textSpan.textContent = '...';
+        zhDiv.appendChild(textSpan);
+
+        // 小喇叭按钮
+        const speakerBtn = document.createElement('button');
+        speakerBtn.className = 'sentence-speaker-btn';
+        speakerBtn.title = Settings.get('language') === 'zh' ? '朗读本句' : 'Read this sentence';
+        speakerBtn.innerHTML = '🔊';
+        speakerBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          Reader.speakSingleSentence(idx);
+        });
+        zhDiv.appendChild(speakerBtn);
+
         container.appendChild(zhDiv);
 
         const s = this.sentences[idx];
         if (s) {
           Translator.translateSentence(this.article.id, idx, s.text).then(zh => {
-            if (zh && zh !== s.text) { zhDiv.textContent = zh; s.zh = zh; }
-            else zhDiv.textContent = '';
-          }).catch(() => { zhDiv.textContent = ''; });
+            if (zh && zh !== s.text) { textSpan.textContent = zh; s.zh = zh; }
+            else textSpan.textContent = '';
+          }).catch(() => { textSpan.textContent = ''; });
         }
       }
     } else {
@@ -431,22 +712,22 @@ const Reader = {
       ft = document.createElement('div');
       ft.id = 'full-translation-container';
       ft.className = 'full-translation';
-      ft.innerHTML = `<div class="ft-title">📝 ${Settings.get('language')==='zh'?'全文翻译':'Full Translation'}</div><div class="loading"><div class="spinner"></div> ${Settings.get('language')==='zh'?'翻译中...':'Translating...'}</div>`;
+      ft.innerHTML = '<div class="ft-title">📝 ' + (Settings.get('language')==='zh'?'全文翻译':'Full Translation') + '</div><div class="loading"><div class="spinner"></div> ' + (Settings.get('language')==='zh'?'翻译中...':'Translating...') + '</div>';
       document.getElementById('article-content').appendChild(ft);
 
       const paragraphs = this.article.content.split('\n\n').filter(p => p.trim());
       Translator.translateFull(this.article.id, paragraphs).then(zh => {
         let parasHtml = '';
         if (zh) {
-          parasHtml = zh.split('\n\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('');
+          parasHtml = zh.split('\n\n').filter(p => p.trim()).map(p => '<p>' + p + '</p>').join('');
         } else {
           const pre = this.article.translation || '';
-          parasHtml = pre.split('\n\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('');
+          parasHtml = pre.split('\n\n').filter(p => p.trim()).map(p => '<p>' + p + '</p>').join('');
         }
-        ft.innerHTML = `<div class="ft-title">📝 ${Settings.get('language')==='zh'?'全文翻译':'Full Translation'}</div>${parasHtml}`;
+        ft.innerHTML = '<div class="ft-title">📝 ' + (Settings.get('language')==='zh'?'全文翻译':'Full Translation') + '</div>' + parasHtml;
       }).catch(() => {
         const pre = this.article.translation || '';
-        ft.innerHTML = `<div class="ft-title">📝 ${Settings.get('language')==='zh'?'全文翻译':'Full Translation'}</div>${pre.split('\n\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('')}`;
+        ft.innerHTML = '<div class="ft-title">📝 ' + (Settings.get('language')==='zh'?'全文翻译':'Full Translation') + '</div>' + pre.split('\n\n').filter(p => p.trim()).map(p => '<p>' + p + '</p>').join('');
       });
     } else {
       btn.classList.remove('active');
@@ -459,17 +740,128 @@ const Reader = {
     this.state.aiSummary = !this.state.aiSummary;
     if (this.state.aiSummary) {
       document.getElementById('ai-summary').style.display = '';
-      document.getElementById('ai-summary').innerHTML = `
-        <div class="ai-summary-title">🤖 ${Settings.get('language')==='zh'?'AI 要点':'AI Key Points'}</div>
-        <div style="font-size:13px;color:var(--text-muted)">${Settings.get('language')==='zh'?'需要配置 AI API Key 才能使用此功能':'AI API key required for this feature'}</div>
-      `;
+      document.getElementById('ai-summary').innerHTML =
+        '<div class="ai-summary-title">🤖 ' + (Settings.get('language')==='zh'?'AI 要点':'AI Key Points') + '</div>' +
+        '<div style="font-size:13px;color:var(--text-muted)">' + (Settings.get('language')==='zh'?'需要配置 AI API Key 才能使用此功能':'AI API key required for this feature') + '</div>';
     } else {
       document.getElementById('ai-summary').style.display = 'none';
     }
   },
 
-  // ===== FULL ARTICLE TEXT-TO-SPEECH =====
+  // ===== FOCUS MODE =====
+  toggleFocusMode() {
+    if (this._focusSession.active) {
+      this.exitFocusMode();
+      return;
+    }
+    this._startFocusMode();
+  },
+
+  _startFocusMode() {
+    const overlay = document.getElementById('focus-overlay');
+    overlay.classList.add('open');
+    this._focusSession.active = true;
+    this._focusSession.startTime = Date.now();
+    this._focusSession.elapsed = 0;
+    this._focusSession.duration = 25; // 25 min default
+
+    // Pause TTS if active
+    if (this._readState.active) this._pauseReading();
+
+    this._updateFocusDisplay();
+    this._focusSession.timerId = setInterval(() => {
+      this._focusSession.elapsed = Math.floor((Date.now() - this._focusSession.startTime) / 1000);
+      this._updateFocusDisplay();
+      if (this._focusSession.elapsed >= this._focusSession.duration * 60) {
+        this._focusComplete();
+      }
+    }, 1000);
+
+    document.getElementById('btn-focus-mode').classList.add('active');
+  },
+
+  _updateFocusDisplay() {
+    const remaining = Math.max(0, this._focusSession.duration * 60 - this._focusSession.elapsed);
+    const mins = Math.floor(remaining / 60);
+    const secs = remaining % 60;
+    document.getElementById('focus-time').textContent = mins + ':' + String(secs).padStart(2, '0');
+
+    const totalSecs = this._focusSession.duration * 60;
+    const progress = this._focusSession.elapsed / totalSecs;
+    const circumference = 339.292;
+    document.getElementById('focus-ring-progress').style.strokeDashoffset = circumference * (1 - Math.min(1, progress));
+
+    document.getElementById('focus-label').textContent = this._focusSession.elapsed > 0
+      ? (Settings.get('language') === 'zh' ? '保持专注...' : 'Stay focused...')
+      : (Settings.get('language') === 'zh' ? '专注阅读开始' : 'Focus session started');
+  },
+
+  _focusComplete() {
+    clearInterval(this._focusSession.timerId);
+    this._focusSession.active = false;
+
+    // Save focus session
+    try {
+      let sessions = Sync.get('el_focus_sessions') || [];
+      sessions.push({
+        date: new Date().toISOString(),
+        duration: this._focusSession.duration,
+        articleId: this.article?.id || null
+      });
+      if (sessions.length > 100) sessions = sessions.slice(-100);
+      Sync.set('el_focus_sessions', sessions);
+    } catch(e) {}
+
+    document.getElementById('focus-overlay').classList.remove('open');
+    document.getElementById('btn-focus-mode').classList.remove('active');
+
+    const isZh = Settings.get('language') === 'zh';
+    App.toast(isZh ? '专注完成！做得很好 🎉' : 'Focus session complete! Well done 🎉', 3000);
+  },
+
+  exitFocusMode() {
+    clearInterval(this._focusSession.timerId);
+    this._focusSession.active = false;
+
+    // Save partial session if > 1 min
+    if (this._focusSession.elapsed > 60) {
+      try {
+        let sessions = Sync.get('el_focus_sessions') || [];
+        sessions.push({
+          date: new Date().toISOString(),
+          duration: Math.round(this._focusSession.elapsed / 60),
+          articleId: this.article?.id || null,
+          partial: true
+        });
+        if (sessions.length > 100) sessions = sessions.slice(-100);
+        Sync.set('el_focus_sessions', sessions);
+      } catch(e) {}
+    }
+
+    document.getElementById('focus-overlay').classList.remove('open');
+    document.getElementById('btn-focus-mode').classList.remove('active');
+  },
+
+  setFocusDuration(mins) {
+    this._focusSession.duration = mins;
+    if (this._focusSession.active) {
+      this._focusSession.startTime = Date.now();
+      this._focusSession.elapsed = 0;
+      this._updateFocusDisplay();
+    }
+  },
+
+  // ===== TTS WITH SPEED CONTROL =====
   _readState: { active: false, paused: false, currentIdx: -1, utterance: null },
+
+  setTTSSpeed(speed) {
+    this._ttsSpeed = speed;
+    document.querySelectorAll('.tts-speed-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector('.tts-speed-btn[data-speed="' + speed + '"]');
+    if (btn) btn.classList.add('active');
+    // Show speed bar
+    document.getElementById('tts-speed-bar').style.display = 'flex';
+  },
 
   toggleReadAloud() {
     if (!this._readState.active) {
@@ -482,80 +874,48 @@ const Reader = {
   },
 
   _startReading() {
-    if (!window.speechSynthesis) {
-      App.toast(Settings.get('language') === 'zh' ? '浏览器不支持语音合成' : 'Speech not supported');
-      return;
-    }
-
     if (!this.sentences || this.sentences.length === 0) return;
 
     const btn = document.getElementById('btn-read-aloud');
     btn.classList.add('active');
-    const label = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
-    btn.innerHTML = label;
+    btn.innerHTML = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
 
-    this._readState = { active: true, paused: false, currentIdx: -1, utterance: null };
-    this._readNext();
+    document.getElementById('tts-speed-bar').style.display = 'flex';
+
+    this._readState = { active: true, paused: false, currentIdx: 0, utterance: null };
+    this._playCurrentSentence();
   },
 
-  _readNext() {
+  /** 播放当前句子，完成后自动播下一句 */
+  async _playCurrentSentence() {
     if (!this._readState.active) return;
     if (this._readState.paused) return;
-    if (!window.speechSynthesis) { this._stopReading(); return; }
 
-    this._readState.currentIdx++;
-    if (this._readState.currentIdx >= this.sentences.length) {
+    const idx = this._readState.currentIdx;
+    if (idx >= this.sentences.length) {
       this._stopReading();
       return;
     }
 
-    const idx = this._readState.currentIdx;
     const sentence = this.sentences[idx];
-
-    // Highlight current sentence
     this._highlightSentence(idx);
 
-    const utter = new SpeechSynthesisUtterance(sentence.text);
     try {
-      const voices = speechSynthesis.getVoices();
-      const voice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang && v.lang.startsWith('en'));
-      if (voice) utter.voice = voice;
-    } catch(e) { /* voice selection failed, use default */ }
-    utter.lang = 'en-US';
-    utter.rate = 0.9;
-    utter.pitch = 1;
+      await TTS.speak(sentence.text, this._ttsSpeed);
+    } catch(e) {}
 
-    utter.onend = () => {
-      if (this._readState.active && !this._readState.paused) {
-        this._readNext();
-      }
-    };
-
-    utter.onerror = (e) => {
-      if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('TTS error:', e.error);
-        this._readNext(); // skip this sentence and continue
-      }
-    };
-
-    this._readState.utterance = utter;
-    try {
-      speechSynthesis.speak(utter);
-    } catch(e) {
-      console.warn('speak() failed:', e);
-      this._readNext();
+    // 当前句播放完，检查是否继续下一句
+    if (this._readState.active && !this._readState.paused) {
+      this._readState.currentIdx++;
+      this._playCurrentSentence();
     }
   },
 
   _highlightSentence(idx) {
-    // Remove previous highlight
     document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading'));
-
-    // Find and highlight current sentence container
-    const container = document.querySelector(`[data-sentence-idx="${idx}"]`);
+    const container = document.querySelector('[data-sentence-idx="' + idx + '"]');
     if (container) {
       container.classList.add('sentence-reading');
-      // Smooth scroll to the sentence
       container.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   },
@@ -563,24 +923,25 @@ const Reader = {
   _pauseReading() {
     if (!this._readState.active) return;
     this._readState.paused = true;
-    try { if (window.speechSynthesis) speechSynthesis.pause(); } catch(e) {}
+    TTS.stop();
     const btn = document.getElementById('btn-read-aloud');
     if (btn) btn.innerHTML = Settings.get('language') === 'zh' ? '▶ 继续' : '▶ Resume';
   },
 
   _resumeReading() {
+    if (!this._readState.active) return;
     this._readState.paused = false;
-    try { if (window.speechSynthesis) speechSynthesis.resume(); } catch(e) {}
     const btn = document.getElementById('btn-read-aloud');
     if (btn) btn.innerHTML = Settings.get('language') === 'zh' ? '⏸ 暂停' : '⏸ Pause';
+    // 重新播放当前句子，不再递增索引
+    this._playCurrentSentence();
   },
 
   _stopReading() {
     this._readState.active = false;
     this._readState.paused = false;
-    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e) {}
+    TTS.stop();
 
-    // Remove highlight
     try { document.querySelectorAll('.sentence-reading').forEach(el => el.classList.remove('sentence-reading')); } catch(e) {}
 
     const btn = document.getElementById('btn-read-aloud');
@@ -588,16 +949,32 @@ const Reader = {
       btn.classList.remove('active');
       btn.innerHTML = Settings.get('language') === 'zh' ? '🔊 全文朗读' : '🔊 Read Aloud';
     }
+    document.getElementById('tts-speed-bar').style.display = 'none';
 
-    this._readState.currentIdx = -1;
+    this._readState.currentIdx = 0;
+  },
+
+  /** 朗读单句（逐句翻译小喇叭使用），不改变全文朗读状态 */
+  async speakSingleSentence(idx) {
+    const sentence = this.sentences[idx];
+    if (!sentence) return;
+    // 暂停全文朗读（如果正在进行）
+    const wasReading = this._readState.active && !this._readState.paused;
+    if (wasReading) this._pauseReading();
+
+    this._highlightSentence(idx);
+    try {
+      await TTS.speak(sentence.text, this._ttsSpeed);
+    } catch(e) {}
+
+    // 恢复之前的全文朗读状态（用户需手动继续）
   },
 
   // ===== ARTICLE READ / BOOKMARK =====
-
   _loadArticleStates() {
     try {
-      this._readArticles = JSON.parse(localStorage.getItem('el_read') || '[]');
-      this._bookmarkedArticles = JSON.parse(localStorage.getItem('el_bookmark') || '[]');
+      this._readArticles = Sync.get('el_read') || [];
+      this._bookmarkedArticles = Sync.get('el_bookmark') || [];
     } catch(e) {
       this._readArticles = [];
       this._bookmarkedArticles = [];
@@ -637,10 +1014,10 @@ const Reader = {
       this._readArticles.splice(idx, 1);
     } else {
       this._readArticles.push(id);
-      // Clear resume state when explicitly marked as read
       Profile.clearLastRead();
+      this._showSpeed();
     }
-    try { localStorage.setItem('el_read', JSON.stringify(this._readArticles)); } catch(e) {}
+    try { Sync.set('el_read', this._readArticles); } catch(e) {}
     this._updateActionButtons();
   },
 
@@ -653,12 +1030,19 @@ const Reader = {
     } else {
       this._bookmarkedArticles.push(id);
     }
-    try { localStorage.setItem('el_bookmark', JSON.stringify(this._bookmarkedArticles)); } catch(e) {}
+    try { Sync.set('el_bookmark', this._bookmarkedArticles); } catch(e) {}
     this._updateActionButtons();
+
+    // Bounce animation
+    const btn = document.getElementById('btn-bookmark');
+    if (btn && this._bookmarkedArticles.includes(id)) {
+      btn.classList.add('bookmark-animate');
+      setTimeout(() => btn.classList.remove('bookmark-animate'), 400);
+    }
+
     const isZh = Settings.get('language') === 'zh';
     App.toast(this._bookmarkedArticles.includes(id)
       ? (isZh ? '已收藏 ⭐' : 'Bookmarked ⭐')
       : (isZh ? '已取消收藏' : 'Removed bookmark'));
   }
-
 };

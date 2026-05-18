@@ -1,26 +1,19 @@
 {
-  "packageId": "com.englishreading.app",
-  "host": "wangqiyue26-lab.github.io",
-  "name": "英语阅读",
-  "launcherName": "英语阅读",
+  "name": "English Reading",
+  "short_name": "EN Reading",
+  "description": "English magazine reader with word lookup, translations, and learning tools",
+  "start_url": "./",
   "display": "standalone",
-  "themeColor": "#faf9f6",
-  "navigationColor": "#faf9f6",
-  "backgroundColor": "#faf9f6",
-  "startUrl": "/english-reading/",
-  "iconUrl": "https://wangqiyue26-lab.github.io/english-reading/favicon.ico",
-  "maskableIconUrl": "https://wangqiyue26-lab.github.io/english-reading/favicon.ico",
-  "splashScreenFadeOutDuration": 300,
-  "signingKey": {
-    "path": "./android.keystore",
-    "alias": "englishreading"
-  },
-  "appVersionName": "1.0.0",
-  "appVersionCode": 1,
-  "enableNotifications": false,
-  "fallbackType": "customtabs",
-  "features": {
-    "playBilling": { "enabled": false },
-    "locationDelegation": { "enabled": false }
-  }
+  "orientation": "portrait",
+  "background_color": "#faf8f5",
+  "theme_color": "#faf8f5",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>",
+      "sizes": "100x100",
+      "type": "image/svg+xml"
+    }
+  ],
+  "lang": "zh-CN",
+  "categories": ["education", "books"]
 }

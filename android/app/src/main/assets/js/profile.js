@@ -1,6 +1,7 @@
 /* ============================================
    Profile Module — Streak, Level, Heatmap,
-   Resume, Vocab Analytics, Bookmarks, Reads
+   Resume, Vocab Export, Weekly Reports,
+   Bookmarks, Reads, Focus History
    ============================================ */
 
 const Profile = {
@@ -11,12 +12,9 @@ const Profile = {
   dailyStats: {},
   lastRead: null,
   _vocabTab: 'all',
-  _vocabFilterIdx: null, // index of word being viewed in popup
 
-  /* Ebbinghaus review intervals (days after last review) */
   REVIEW_INTERVALS: [1, 2, 4, 7, 15, 30],
 
-  /* Level system: { icon, i18nKey, minDays, maxDays } */
   LEVELS: [
     { icon: '🌱', key: 'level_0', min: 0, max: 6 },
     { icon: '📖', key: 'level_1', min: 7, max: 29 },
@@ -31,13 +29,12 @@ const Profile = {
 
   _loadData() {
     try {
-      this.vocab = JSON.parse(localStorage.getItem('el_vocab') || '[]');
-      this.readIds = JSON.parse(localStorage.getItem('el_read') || '[]');
-      this.bookmarkIds = JSON.parse(localStorage.getItem('el_bookmark') || '[]');
-      this.streakDates = JSON.parse(localStorage.getItem('el_streak_dates') || '[]');
-      this.dailyStats = JSON.parse(localStorage.getItem('el_daily_stats') || '{}');
-      this.lastRead = JSON.parse(localStorage.getItem('el_last_read') || 'null');
-      // Ensure vocab entries have reviews array
+      this.vocab = Sync.get('el_vocab') || [];
+      this.readIds = Sync.get('el_read') || [];
+      this.bookmarkIds = Sync.get('el_bookmark') || [];
+      this.streakDates = Sync.get('el_streak_dates') || [];
+      this.dailyStats = Sync.get('el_daily_stats') || {};
+      this.lastRead = Sync.get('el_last_read');
       this.vocab = this.vocab.map(w => ({
         ...w,
         reviews: w.reviews || [],
@@ -53,19 +50,18 @@ const Profile = {
   open() {
     this._loadData();
     this._vocabTab = 'all';
-    // Switch page first so UI is visible even if render has errors
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('profile-page').classList.add('active');
     document.getElementById('app-title').textContent = Settings.t('profile_title');
     window.scrollTo(0, 0);
     App._updateBackButton();
-    // Render after page switch (failures logged but don't block UI)
     this.render();
   },
 
   render() {
     this._loadData();
     const safe = (name, fn) => { try { fn(); } catch(e) { console.warn('Profile render failed:', name, e); } };
+    safe('weeklyReport', () => this._renderWeeklyReport());
     safe('streak', () => this._renderStreak());
     safe('level', () => this._renderLevel());
     safe('resume', () => this._renderResume());
@@ -75,12 +71,99 @@ const Profile = {
     safe('bookmarks', () => this._renderBookmarks());
     safe('reads', () => this._renderReads());
     safe('hideRead', () => this._updateHideReadToggle());
+    safe('focusHistory', () => this._renderFocusHistory());
+    safe('account', () => this._renderAccount());
     safe('language', () => this._applyLanguage());
     safe('tabs', () => this._bindVocabTabs());
   },
 
-  // ===== STREAK =====
+  // ===== WEEKLY REPORT =====
+  _renderWeeklyReport() {
+    const section = document.getElementById('weekly-report');
+    const isZh = Settings.get('language') === 'zh';
 
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    monday.setHours(0, 0, 0, 0);
+
+    let totalArticles = 0, totalWords = 0;
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const ds = d.toISOString().slice(0, 10);
+      weekDays.push(ds);
+      const stat = this.dailyStats[ds];
+      if (stat) {
+        totalArticles += (stat.articles || 0);
+        totalWords += (stat.words || 0);
+      }
+    }
+
+    if (totalArticles === 0 && totalWords === 0) {
+      // Check last week
+      let lastWeekArticles = 0;
+      for (let i = 7; i < 14; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() - i);
+        const ds = d.toISOString().slice(0, 10);
+        const stat = this.dailyStats[ds];
+        if (stat) lastWeekArticles += (stat.articles || 0);
+      }
+      if (lastWeekArticles === 0) {
+        section.style.display = 'none';
+        return;
+      }
+    }
+
+    section.style.display = '';
+    document.getElementById('wr-articles').textContent = totalArticles;
+    document.getElementById('wr-words').textContent = totalWords.toLocaleString();
+
+    // Estimate minutes: ~200 wpm
+    const totalMins = Math.round(totalWords / 200);
+    document.getElementById('wr-minutes').textContent = totalMins || '0';
+
+    // Tip
+    let tip = isZh
+      ? '新的一周开始了，继续保持阅读习惯！📚'
+      : 'A new week begins — keep up your reading habit! 📚';
+    if (totalArticles >= 5) {
+      tip = isZh
+        ? '太棒了！你这周的阅读量很不错，继续保持！🌟'
+        : 'Great job! You had a solid reading week, keep it up! 🌟';
+    } else if (totalArticles >= 3) {
+      tip = isZh
+        ? '不错！你的阅读习惯正在养成中，再坚持一下 💪'
+        : 'Nice work! Your reading habit is building up 💪';
+    } else if (totalArticles > 0) {
+      tip = isZh
+        ? '开始总是最难的，你已经迈出了第一步！明天多读一篇吧 🚀'
+        : 'Starting is the hardest part — you\'ve begun! Try one more tomorrow 🚀';
+    }
+
+    // Check speed trend
+    try {
+      const speeds = Sync.get('el_reading_speeds') || {};
+      let recentSpeeds = [];
+      for (const ds of weekDays) {
+        const daySpeeds = speeds[ds];
+        if (daySpeeds) recentSpeeds = recentSpeeds.concat(daySpeeds.map(s => s.wpm));
+      }
+      if (recentSpeeds.length >= 2) {
+        const avgWpm = Math.round(recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length);
+        tip += isZh
+          ? ' 平均阅读速度：' + avgWpm + ' 词/分钟。'
+          : ' Avg speed: ' + avgWpm + ' wpm.';
+      }
+    } catch(e) {}
+
+    document.getElementById('wr-tip').textContent = tip;
+  },
+
+  // ===== STREAK =====
   _renderStreak() {
     const today = new Date();
     const todayStr = this._dateStr(today);
@@ -108,7 +191,6 @@ const Profile = {
   },
 
   // ===== LEVEL SYSTEM =====
-
   _getLevelInfo(days) {
     for (let i = this.LEVELS.length - 1; i >= 0; i--) {
       if (days >= this.LEVELS[i].min) return { ...this.LEVELS[i], idx: i };
@@ -143,7 +225,6 @@ const Profile = {
   },
 
   // ===== RESUME READING =====
-
   _renderResume() {
     const section = document.getElementById('resume-section');
     if (!this.lastRead || !this.lastRead.articleId) {
@@ -154,7 +235,6 @@ const Profile = {
     const article = Data.getById(this.lastRead.articleId);
     if (!article) { section.style.display = 'none'; return; }
 
-    // Only hide if fully completed (100%)
     if (this.lastRead.progress >= 100) {
       section.style.display = 'none';
       return;
@@ -179,8 +259,7 @@ const Profile = {
     App._applyReaderStyles();
   },
 
-  // ===== REVIEW ALERT (Ebbinghaus) =====
-
+  // ===== REVIEW ALERT =====
   _calcStatus(word) {
     if (!word.reviews || word.reviews.length === 0) return 'new';
     if (word.reviews.length >= this.REVIEW_INTERVALS.length) return 'mastered';
@@ -189,7 +268,7 @@ const Profile = {
     const lastReview = new Date(word.reviews[word.reviews.length - 1] + 'T00:00:00');
     const daysSince = Math.floor((today - lastReview) / 86400000);
     const nextInterval = this.REVIEW_INTERVALS[word.reviews.length - 1] || this.REVIEW_INTERVALS[0];
-    if (daysSince >= nextInterval) return 'review'; // due for review
+    if (daysSince >= nextInterval) return 'review';
     return 'reviewing';
   },
 
@@ -220,24 +299,20 @@ const Profile = {
   },
 
   // ===== HEATMAP =====
-
   _renderHeatmap() {
     const today = new Date();
     const endDate = new Date(today);
     const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - 364); // past 365 days
+    startDate.setDate(startDate.getDate() - 364);
 
-    // Build data map
     const statsMap = {};
     for (const [date, data] of Object.entries(this.dailyStats)) {
       const words = typeof data === 'object' ? (data.words || 0) : data;
       statsMap[date] = words;
     }
 
-    // Build columns (weeks)
     const cols = [];
     let current = new Date(startDate);
-    // Align to Sunday
     const dayOfWeek = current.getDay();
     current.setDate(current.getDate() - dayOfWeek);
 
@@ -253,7 +328,7 @@ const Profile = {
         date.setDate(date.getDate() + d);
         const dateStr = this._dateStr(date);
         if (date > endDate) {
-          week.push({ date: dateStr, words: -1 }); // future
+          week.push({ date: dateStr, words: -1 });
         } else if (date < startDate) {
           week.push({ date: dateStr, words: -1 });
         } else {
@@ -270,17 +345,14 @@ const Profile = {
       current.setDate(current.getDate() + 7);
     }
 
-    // Render months row + grid in unified container
     const grid = document.getElementById('heatmap-grid');
     const monthsEl = document.getElementById('heatmap-months');
 
-    // Month labels as first "row" of grid columns
     monthsEl.innerHTML = cols.map(col => {
       const label = col.find(c => c.monthLabel) || {};
       return '<span class="heatmap-month-label">' + (label.monthLabel || '') + '</span>';
     }).join('');
 
-    // Grid cells (7 rows per column)
     const maxWords = Math.max(1, ...Object.values(statsMap));
     grid.innerHTML = cols.map(col =>
       '<div class="heatmap-col">' +
@@ -304,7 +376,6 @@ const Profile = {
   },
 
   // ===== VOCAB =====
-
   _bindVocabTabs() {
     document.querySelectorAll('.vocab-tab').forEach(tab => {
       tab.onclick = () => this._switchVocabTab(tab.getAttribute('data-tab'));
@@ -367,17 +438,14 @@ const Profile = {
     event.stopPropagation();
     const word = this.vocab[idx];
     if (!word) return;
-    // Mark as reviewed
     const today = this._dateStr(new Date());
     if (!word.reviews) word.reviews = [];
     if (!word.reviews.includes(today)) {
       word.reviews.push(today);
       word.status = this._calcStatus(word);
-      try { localStorage.setItem('el_vocab', JSON.stringify(this.vocab)); } catch(e) {}
+      try { Sync.set('el_vocab', this.vocab); } catch(e) {}
     }
-    // Show word popup
     Reader.showWordPopup(word.word, event);
-    // Re-render after short delay
     setTimeout(() => this._renderVocab(), 500);
   },
 
@@ -385,12 +453,91 @@ const Profile = {
     event.stopPropagation();
     event.preventDefault();
     this.vocab.splice(idx, 1);
-    try { localStorage.setItem('el_vocab', JSON.stringify(this.vocab)); } catch(e) {}
+    try { Sync.set('el_vocab', this.vocab); } catch(e) {}
     this._renderVocab();
   },
 
-  // ===== BOOKMARKS =====
+  addVocab(word, phonetic, definition) {
+    // Check if already exists
+    if (this.vocab.some(w => w.word.toLowerCase() === word.toLowerCase())) return;
+    this.vocab.push({
+      word, phonetic, definition,
+      addedAt: new Date().toISOString(),
+      reviews: [],
+      status: 'new'
+    });
+    try { Sync.set('el_vocab', this.vocab); } catch(e) {}
+    App._updateQuickEntries();
+  },
 
+  // ===== VOCAB EXPORT =====
+  exportVocab(format) {
+    const filtered = this._filterVocab();
+    if (filtered.length === 0) {
+      App.toast(Settings.get('language') === 'zh' ? '没有可导出的单词' : 'No words to export');
+      return;
+    }
+
+    let content, filename, mimeType;
+
+    switch (format) {
+      case 'csv':
+        // Anki-compatible CSV: front, back
+        content = filtered.map(w =>
+          '"' + w.word + '","' + (w.definition || '') + (w.phonetic ? ' /' + w.phonetic + '/' : '') + '"'
+        ).join('\n');
+        content = 'Word,Definition\n' + content;
+        filename = 'vocabulary_anki.csv';
+        mimeType = 'text/csv';
+        break;
+
+      case 'markdown':
+        content = '# My Vocabulary\n\n';
+        content += '| Word | Phonetic | Definition | Status |\n';
+        content += '|------|----------|------------|--------|\n';
+        content += filtered.map(w => {
+          const status = this._calcStatus(w);
+          const statusLabels = { new: 'New', review: 'Review', reviewing: 'Learning', mastered: 'Mastered' };
+          return '| ' + w.word + ' | ' + (w.phonetic ? '/' + w.phonetic + '/' : '-') + ' | ' + (w.definition || '-') + ' | ' + (statusLabels[status] || status) + ' |';
+        }).join('\n');
+        filename = 'vocabulary.md';
+        mimeType = 'text/markdown';
+        break;
+
+      case 'text':
+        content = filtered.map(w => w.word + (w.definition ? ' — ' + w.definition : '')).join('\n');
+        filename = 'vocabulary.txt';
+        mimeType = 'text/plain';
+        break;
+
+      case 'clipboard':
+        content = filtered.map(w => w.word + (w.definition ? '\t' + w.definition : '')).join('\n');
+        navigator.clipboard.writeText(content).then(() => {
+          App.toast(Settings.get('language') === 'zh'
+            ? '已复制 ' + filtered.length + ' 个单词到剪贴板 📋'
+            : 'Copied ' + filtered.length + ' words to clipboard 📋');
+        }).catch(() => {
+          App.toast(Settings.get('language') === 'zh' ? '复制失败' : 'Copy failed');
+        });
+        return;
+
+      default: return;
+    }
+
+    const blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    App.toast(Settings.get('language') === 'zh'
+      ? '已导出 ' + filtered.length + ' 个单词 📤'
+      : 'Exported ' + filtered.length + ' words 📤');
+  },
+
+  // ===== BOOKMARKS =====
   _renderBookmarks() {
     const list = document.getElementById('profile-bookmark-list');
     document.getElementById('bookmark-count').textContent = this.bookmarkIds.length;
@@ -404,7 +551,6 @@ const Profile = {
   },
 
   // ===== READ ARTICLES =====
-
   _renderReads() {
     const list = document.getElementById('profile-read-list');
     document.getElementById('read-count').textContent = this.readIds.length;
@@ -417,8 +563,32 @@ const Profile = {
     list.innerHTML = articles.map(a => this._articleCardHTML(a, '✅')).join('');
   },
 
-  // ===== HIDE READ =====
+  // ===== FOCUS HISTORY =====
+  _renderFocusHistory() {
+    const section = document.getElementById('focus-history-section');
+    const list = document.getElementById('focus-history-list');
+    try {
+      const sessions = Sync.get('el_focus_sessions') || [];
+      if (sessions.length === 0) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      const isZh = Settings.get('language') === 'zh';
+      const recent = sessions.slice(-10).reverse();
+      list.innerHTML = recent.map(s => {
+        const date = new Date(s.date).toLocaleDateString();
+        const article = s.articleId ? Data.getById(s.articleId) : null;
+        const articleTitle = article ? article.title : (isZh ? '自由阅读' : 'Free reading');
+        return '<div class="profile-article-card" style="cursor:default">' +
+          '<span class="pa-icon">🧘</span>' +
+          '<div class="pa-info">' +
+            '<div class="pa-title">' + s.duration + ' min · ' + this._escape(articleTitle) + '</div>' +
+            '<div class="pa-meta">' + date + (s.partial ? ' · ' + (isZh ? '提前结束' : 'Early end') : '') + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) { section.style.display = 'none'; }
+  },
 
+  // ===== HIDE READ =====
   toggleHideRead() {
     const current = Settings.get('hideRead');
     Settings.set('hideRead', !current);
@@ -434,32 +604,58 @@ const Profile = {
     else btn.classList.remove('on');
   },
 
-  // ===== DAILY STATS (called from app.js) =====
-
+  // ===== DAILY STATS =====
   recordRead(article) {
     try {
       const today = new Date().toISOString().slice(0, 10);
-      let stats = JSON.parse(localStorage.getItem('el_daily_stats') || '{}');
+      let stats = Sync.get('el_daily_stats') || {};
       if (!stats[today]) stats[today] = { articles: 0, words: 0 };
       stats[today].articles = (stats[today].articles || 0) + 1;
       stats[today].words = (stats[today].words || 0) + (article.wordCount || 0);
-      localStorage.setItem('el_daily_stats', JSON.stringify(stats));
+      Sync.set('el_daily_stats', stats);
     } catch(e) {}
   },
 
   saveLastRead(articleId, progress) {
     try {
       const data = { articleId, progress, timestamp: Date.now() };
-      localStorage.setItem('el_last_read', JSON.stringify(data));
+      Sync.set('el_last_read', data);
     } catch(e) {}
   },
 
   clearLastRead() {
-    try { localStorage.removeItem('el_last_read'); } catch(e) {}
+    try { Sync.set('el_last_read', null); } catch(e) {}
+  },
+
+  // ===== ACCOUNT =====
+  _renderAccount() {
+    const loggedOut = document.getElementById('account-logged-out');
+    const loggedIn = document.getElementById('account-logged-in');
+    const emailEl = document.getElementById('account-email');
+    const logoutBtn = document.getElementById('btn-logout');
+
+    if (Auth.isLoggedIn) {
+      if (loggedOut) loggedOut.style.display = 'none';
+      if (loggedIn) loggedIn.style.display = '';
+      if (emailEl) emailEl.textContent = Auth.user?.email || '';
+      if (logoutBtn) {
+        logoutBtn.onclick = async () => {
+          try {
+            await Auth.logout();
+            Profile.render();
+            App.toast(Settings.get('language') === 'zh' ? '已退出登录' : 'Logged out');
+          } catch(e) {
+            App.toast('Logout failed');
+          }
+        };
+      }
+    } else {
+      if (loggedOut) loggedOut.style.display = '';
+      if (loggedIn) loggedIn.style.display = 'none';
+    }
   },
 
   // ===== HELPERS =====
-
   _articleCardHTML(article, icon) {
     return '<div class="profile-article-card" onclick="Profile._openArticle(\'' + article.id + '\')">' +
       '<span class="pa-icon">' + icon + '</span>' +
